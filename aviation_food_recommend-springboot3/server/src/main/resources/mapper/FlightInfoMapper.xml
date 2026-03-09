@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="fun.hykgraph.mapper.FlightInfoMapper">
+
+    <select id="listAll" resultType="fun.hykgraph.entity.FlightInfo">
+        select * from flight_info order by departure_time desc
+    </select>
+
+    <insert id="insert">
+        <selectKey keyProperty="id" resultType="java.lang.Integer" order="BEFORE">
+            select coalesce(max(id), 0) + 1 from flight_info
+        </selectKey>
+        insert into flight_info
+        (id, flight_number, departure, destination, departure_time, arrival_time, duration_minutes,
+         meal_count, meal_times, selection_deadline, status, create_user, update_user, create_time, update_time)
+        values
+        (#{id}, #{flightNumber}, #{departure}, #{destination}, #{departureTime}, #{arrivalTime}, #{durationMinutes},
+         #{mealCount}, #{mealTimes}, #{selectionDeadline}, #{status}, #{createUser}, #{updateUser}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update">
+        update flight_info
+        <set>
+            <if test="flightNumber != null">flight_number = #{flightNumber},</if>
+            <if test="departure != null">departure = #{departure},</if>
+            <if test="destination != null">destination = #{destination},</if>
+            <if test="departureTime != null">departure_time = #{departureTime},</if>
+            <if test="arrivalTime != null">arrival_time = #{arrivalTime},</if>
+            <if test="durationMinutes != null">duration_minutes = #{durationMinutes},</if>
+            <if test="mealCount != null">meal_count = #{mealCount},</if>
+            <if test="mealTimes != null">meal_times = #{mealTimes},</if>
+            <if test="selectionDeadline != null">selection_deadline = #{selectionDeadline},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateUser != null">update_user = #{updateUser},</if>
+            <if test="updateTime != null">update_time = #{updateTime}</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        delete from flight_info where id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="fun.hykgraph.mapper.FlightAnnouncementMapper">
+
+    <select id="list" resultType="fun.hykgraph.entity.FlightAnnouncement">
+        select * from flight_announcement
+        <where>
+            <if test="flightId != null">
+                and flight_id = #{flightId}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into flight_announcement
+        (flight_id, title, content, status, create_user, create_time, update_time)
+        values
+        (#{flightId}, #{title}, #{content}, #{status}, #{createUser}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update">
+        update flight_announcement
+        <set>
+            <if test="flightId != null">flight_id = #{flightId},</if>
+            <if test="title != null">title = #{title},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateTime != null">update_time = #{updateTime}</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        delete from flight_announcement where id = #{id}
+    </delete>
+
+</mapper>

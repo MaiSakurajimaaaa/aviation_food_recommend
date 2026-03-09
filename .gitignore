@@ -1,0 +1,22 @@
+﻿# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Java / Maven
+**/target/
+*.class
+
+# Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# UniApp
+**/unpackage/

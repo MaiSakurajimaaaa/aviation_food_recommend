@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="fun.hykgraph.mapper.UserMealCenterMapper">
+
+    <select id="listSelectionsByOrders" resultType="fun.hykgraph.vo.UserMealSelectionVO">
+        select u.id as user_id,
+               u.name as user_name,
+               u.id_number,
+               u.phone,
+               fi.id as flight_id,
+               fi.flight_number,
+               fi.departure,
+               fi.destination,
+               o.id as order_id,
+               o.number as order_number,
+               o.status as order_status,
+               o.order_time,
+               od.dish_id,
+               od.name as dish_name,
+               od.dish_flavor,
+               od.number as dish_count
+        from orders o
+                 inner join order_detail od on od.order_id = o.id
+                 inner join user u on u.id = o.user_id
+                 left join flight_info fi on fi.id = u.current_flight_id
+        <where>
+            <if test="flightNumber != null and flightNumber != ''">
+                and fi.flight_number like concat('%', #{flightNumber}, '%')
+            </if>
+            <if test="name != null and name != ''">
+                and u.name like concat('%', #{name}, '%')
+            </if>
+            <if test="idNumber != null and idNumber != ''">
+                and u.id_number like concat('%', #{idNumber}, '%')
+            </if>
+        </where>
+        order by o.order_time desc, o.id desc, od.id asc
+    </select>
+
+    <select id="listSelectionsByMealSelection" resultType="fun.hykgraph.vo.UserMealSelectionVO">
+        select u.id as user_id,
+               u.name as user_name,
+               u.id_number,
+               u.phone,
+               fi.id as flight_id,
+               fi.flight_number,
+               fi.departure,
+               fi.destination,
+               ms.id as order_id,
+               ms.number as order_number,
+               case
+                   when ms.status = 5 then 5
+                   when ms.status = 3 then 3
+                   when ms.status = 1 and mlog.recommended_dishes is not null then 3
+                   else ms.status
+               end as order_status,
+               ms.create_time as order_time,
+               null as dish_id,
+               case
+                   when mlog.recommended_dishes is not null then
+                       ifnull((
+                           select group_concat(d.name order by find_in_set(cast(d.id as char), replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', '')) separator '、')
+                           from dish d
+                           where find_in_set(cast(d.id as char), replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', '')) &gt; 0
+                       ), replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''))
+                   when alog.recommended_dishes is not null then replace(replace(replace(replace(alog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', '')
+                   else '未记录具体餐食'
+               end as dish_name,
+               '-' as dish_flavor,
+               case
+                   when mlog.recommended_dishes is not null then
+                       1 + length(replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''))
+                           - length(replace(replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''), ',', ''))
+                   when alog.recommended_dishes is not null then
+                       1 + length(replace(replace(replace(replace(alog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''))
+                           - length(replace(replace(replace(replace(replace(alog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''), ',', ''))
+                   else 0
+               end as dish_count
+        from meal_selection ms
+                 inner join user u on u.id = ms.user_id
+                 left join flight_info fi on fi.id = ms.flight_id
+                 left join (
+                    select rl.user_id, rl.flight_id, rl.recommended_dishes
+                    from recommendation_log rl
+                             inner join (
+                        select user_id, flight_id, max(id) as latest_id
+                        from recommendation_log
+                        where user_feedback like 'MANUAL_SELECTED%'
+                          and recommended_dishes is not null
+                          and nullif(replace(trim(recommended_dishes), ' ', ''), '[]') is not null
+                        group by user_id, flight_id
+                    ) latest_manual on latest_manual.latest_id = rl.id
+                 ) mlog on mlog.user_id = ms.user_id and mlog.flight_id = ms.flight_id
+                 left join (
+                    select rl.user_id, rl.flight_id, rl.recommended_dishes
+                    from recommendation_log rl
+                             inner join (
+                        select user_id, flight_id, max(id) as latest_id
+                        from recommendation_log
+                        where user_feedback = 'AUTO_SELECTED_OVERDUE'
+                          and recommended_dishes is not null
+                          and nullif(replace(trim(recommended_dishes), ' ', ''), '[]') is not null
+                        group by user_id, flight_id
+                    ) latest_auto on latest_auto.latest_id = rl.id
+                 ) alog on alog.user_id = ms.user_id and alog.flight_id = ms.flight_id
+        <where>
+            <if test="flightNumber != null and flightNumber != ''">
+                and fi.flight_number like concat('%', #{flightNumber}, '%')
+            </if>
+            <if test="name != null and name != ''">
+                and u.name like concat('%', #{name}, '%')
+            </if>
+            <if test="idNumber != null and idNumber != ''">
+                and u.id_number like concat('%', #{idNumber}, '%')
+            </if>
+        </where>
+        order by ms.create_time desc, ms.id desc
+    </select>
+
+</mapper>

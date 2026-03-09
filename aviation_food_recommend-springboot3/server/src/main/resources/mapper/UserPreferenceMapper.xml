@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="fun.hykgraph.mapper.UserPreferenceMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into user_preference
+        (user_id, meal_type_preferences, flavor_preferences, allergens, dietary_notes, create_time, update_time)
+        values
+        (#{userId}, #{mealTypePreferences}, #{flavorPreferences}, #{allergens}, #{dietaryNotes}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update">
+        update user_preference
+        <set>
+            <if test="mealTypePreferences != null">meal_type_preferences = #{mealTypePreferences},</if>
+            <if test="flavorPreferences != null">flavor_preferences = #{flavorPreferences},</if>
+            <if test="allergens != null">allergens = #{allergens},</if>
+            <if test="dietaryNotes != null">dietary_notes = #{dietaryNotes},</if>
+            <if test="updateTime != null">update_time = #{updateTime}</if>
+        </set>
+        where user_id = #{userId}
+    </update>
+
+</mapper>

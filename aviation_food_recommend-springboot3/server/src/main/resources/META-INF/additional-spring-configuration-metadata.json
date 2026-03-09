@@ -1,0 +1,43 @@
+{
+  "properties": [
+    {
+      "name": "aviation-food-recommend.datasource.driver-class-name",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.datasource.driver-class-name."
+    },
+    {
+      "name": "aviation-food-recommend.datasource.url",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.datasource.url."
+    },
+    {
+      "name": "aviation-food-recommend.datasource.username",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.datasource.username."
+    },
+    {
+      "name": "aviation-food-recommend.datasource.password",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.datasource.password."
+    },
+    {
+      "name": "aviation-food-recommend.redis.host",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.redis.host."
+    },
+    {
+      "name": "aviation-food-recommend.redis.port",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.redis.port."
+    },
+    {
+      "name": "aviation-food-recommend.redis.password",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.redis.password."
+    },
+    {
+      "name": "aviation-food-recommend.redis.database",
+      "type": "java.lang.String",
+      "description": "Description for aviation-food-recommend.redis.database."
+    }
+  ] }

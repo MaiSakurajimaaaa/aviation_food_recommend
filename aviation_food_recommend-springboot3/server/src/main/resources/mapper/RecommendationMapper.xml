@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="fun.hykgraph.mapper.RecommendationMapper">
+
+    <select id="listCandidateDishes" resultType="fun.hykgraph.vo.RecommendationDishVO">
+        select d.id as dish_id,
+               d.name as dish_name,
+               d.pic,
+               d.detail,
+               d.meal_type,
+               d.flavor_tags,
+               frd.departure as route_departure,
+               frd.destination as route_destination,
+             0 as score,
+             0 as fallback_level
+        from dish d
+        left join flight_route_dish frd on d.id = frd.dish_id
+        <where>
+            d.status = 1
+            and ifnull(d.stock, 0) &gt; 0
+            <if test="mealType != null">
+                and d.meal_type = #{mealType}
+            </if>
+            <if test="flavor != null and flavor != ''">
+                and d.flavor_tags like concat('%', #{flavor}, '%')
+            </if>
+            <if test="flightId != null">
+                and (frd.id is null or frd.id in (
+                    select id from flight_route_dish
+                    where dish_id = d.id
+                      and departure = (select departure from flight_info where id = #{flightId})
+                      and destination = (select destination from flight_info where id = #{flightId})
+                ))
+            </if>
+        </where>
+        order by d.id desc
+        limit #{limit}
+    </select>
+
+    <insert id="insertLog">
+        insert into recommendation_log
+        (user_id, flight_id, recommended_dishes, algorithm_type, user_feedback, create_time)
+        values
+        (#{userId}, #{flightId}, #{recommendedDishes}, #{algorithmType}, #{userFeedback}, now())
+    </insert>
+
+    <select id="listHistory" resultType="java.util.HashMap">
+        select id, user_id, flight_id, recommended_dishes, algorithm_type, user_rating, user_feedback, create_time
+        from recommendation_log
+        where user_id = #{userId}
+        order by create_time desc
+        limit 20
+    </select>
+
+        <select id="findVisiblePendingRatings" resultType="fun.hykgraph.vo.PendingRatingInfoVO">
+                select fr.id as ratingTaskId,
+                             fr.source_log_id as logId,
+                             fr.flight_id as flightId,
+                             fr.rating_status as ratingStatus,
+                             fr.defer_count as deferCount,
+                             fr.next_remind_at as nextRemindAt,
+                             fr.expire_at as expireAt,
+                             rl.recommended_dishes as recommendedDishes,
+                             fi.flight_number as flightNumber,
+                             fi.departure,
+                             fi.destination,
+                             fi.departure_time as departureTime,
+                             fi.arrival_time as arrivalTime
+                from flight_service_rating fr
+                                 left join recommendation_log rl on rl.id = fr.source_log_id
+                                 inner join flight_info fi on fi.id = fr.flight_id
+                where fr.user_id = #{userId}
+                    and fr.rating_status in ('PENDING', 'DEFERRED')
+                    and (fr.next_remind_at is null or fr.next_remind_at &lt;= #{now})
+                    and (fr.expire_at is null or fr.expire_at &gt; #{now})
+                order by fi.arrival_time desc, fr.id desc
+        </select>
+
+            <select id="findEndedManualSelectionsWithoutRating" resultType="java.util.HashMap">
+                select rl.id as sourceLogId,
+                             rl.flight_id as flightId,
+                             rl.recommended_dishes as recommendedDishes,
+                             fi.flight_number as flightNumber,
+                             fi.departure,
+                             fi.destination,
+                             fi.departure_time as departureTime,
+                             fi.arrival_time as arrivalTime
+                from recommendation_log rl
+                                 inner join flight_info fi on fi.id = rl.flight_id
+                                 inner join (
+                        select user_id, flight_id, max(id) as latest_id
+                        from recommendation_log
+                        where user_id = #{userId}
+                            and user_feedback like 'MANUAL_SELECTED%'
+                        group by user_id, flight_id
+                ) latest on latest.latest_id = rl.id
+                where rl.user_id = #{userId}
+                    and fi.arrival_time is not null
+                    and fi.arrival_time &lt;= #{now}
+                    and (rl.user_rating is null or rl.user_rating = 0)
+                    and not exists(
+                        select 1 from flight_service_rating fr
+                        where fr.user_id = rl.user_id
+                            and fr.flight_id = rl.flight_id
+                            and fr.rating_status = 'SUBMITTED'
+                    )
+                    and not exists(
+                        select 1 from flight_service_rating fr2
+                        where fr2.user_id = rl.user_id
+                            and fr2.flight_id = rl.flight_id
+                            and fr2.rating_status in ('PENDING', 'DEFERRED')
+                            and (fr2.expire_at is null or fr2.expire_at &gt; #{now})
+                    )
+                order by fi.arrival_time desc, rl.id desc
+                limit 30
+        </select>
+
+        <insert id="upsertFlightRatingTask">
+                insert into flight_service_rating
+                (user_id, flight_id, source_log_id, rating_status, first_visible_at, last_visible_at,
+                 next_remind_at, defer_count, expire_at, channel, create_time, update_time)
+                values
+                        (#{userId}, #{flightId}, #{sourceLogId}, #{ratingStatus}, #{firstVisibleAt}, #{lastVisibleAt},
+                         #{nextRemindAt}, #{deferCount}, #{expireAt}, #{channel}, #{createTime}, #{updateTime})
+                        on duplicate key update
+                                                                 source_log_id = values(source_log_id),
+                                                                 last_visible_at = values(last_visible_at),
+                                                                 update_time = values(update_time)
+        </insert>
+
+        <update id="deferFlightRating">
+                update flight_service_rating
+                set rating_status = 'DEFERRED',
+                        defer_count = ifnull(defer_count, 0) + 1,
+                        last_visible_at = #{now},
+                        next_remind_at = #{nextRemindAt},
+                        update_time = #{now}
+                where user_id = #{userId}
+                    and flight_id = #{flightId}
+                    and rating_status in ('PENDING', 'DEFERRED')
+                    and (expire_at is null or expire_at &gt; #{now})
+        </update>
+
+        <update id="submitFlightRating">
+                update flight_service_rating
+                set rating_score = #{rating},
+                        rating_status = 'SUBMITTED',
+                        submitted_at = #{now},
+                        last_visible_at = #{now},
+                        next_remind_at = null,
+                        update_time = #{now}
+                where user_id = #{userId}
+                    and flight_id = #{flightId}
+                    and rating_status in ('PENDING', 'DEFERRED')
+                    and (expire_at is null or expire_at &gt; #{now})
+        </update>
+
+        <update id="syncSubmittedLogRating">
+                update recommendation_log rl
+                inner join flight_service_rating fr on fr.source_log_id = rl.id
+                set rl.user_rating = #{rating}
+                where fr.user_id = #{userId}
+                    and fr.flight_id = #{flightId}
+                    and fr.rating_status = 'SUBMITTED'
+        </update>
+
+    <select id="listRecentLogs" resultType="java.util.HashMap">
+        select user_id as userId,
+               flight_id as flightId,
+               recommended_dishes as recommendedDishes,
+               user_rating as userRating,
+               user_feedback as userFeedback,
+               create_time as createTime
+        from recommendation_log
+        where user_id is not null
+          and (#{days} is null or create_time &gt;= date_sub(now(), interval #{days} day))
+        order by create_time desc
+        limit 8000
+    </select>
+
+    <select id="topDishes" resultType="java.util.HashMap">
+        select d.id as dishId,
+               d.name as dishName,
+               count(rl.id) as selectCount
+        from dish d
+        left join recommendation_log rl on (
+            rl.user_feedback like concat('%dishId=', d.id, '%')
+            or rl.recommended_dishes like concat('%\"', d.name, '\"%')
+            or rl.recommended_dishes like concat('%', d.name, '%')
+            or rl.recommended_dishes regexp concat('(^|[^0-9])', d.id, '([^0-9]|$)')
+        )
+          and (
+            rl.user_feedback like 'MANUAL_SELECTED%'
+            or rl.user_feedback like 'AUTO_SELECTED_OVERDUE%'
+          )
+          <if test="startTime != null">
+              and rl.create_time &gt;= #{startTime}
+          </if>
+          <if test="endTime != null">
+              and rl.create_time &lt;= #{endTime}
+          </if>
+        where d.status = 1
+        group by d.id, d.name
+        having count(rl.id) > 0
+        order by selectCount desc, d.id desc
+        limit #{limit}
+    </select>
+
+    <select id="dashboard" resultType="java.util.HashMap">
+        select
+            (select count(1) from recommendation_log) as recommendCount,
+            (select count(1) from user_preference) as preferenceUserCount,
+            (select count(1) from meal_selection) as selectionCount,
+            (select ifnull(avg(user_rating), 0) from recommendation_log where user_rating is not null) as avgRating
+    </select>
+
+    <insert id="insertMealSelection">
+        insert into meal_selection
+        (number, status, user_id, flight_id, seat_number, create_time, update_time)
+        values
+        (#{number}, #{status}, #{userId}, #{flightId}, #{seatNumber}, #{createTime}, #{updateTime})
+    </insert>
+
+        <update id="updateMealSelectionUpdateTime">
+                update meal_selection
+                set update_time = #{updateTime}
+                where user_id = #{userId}
+                    and flight_id = #{flightId}
+        </update>
+
+    <update id="updateMealSelectionStatusAndUpdateTime">
+        update meal_selection
+        set status = #{status},
+            update_time = #{updateTime}
+        where user_id = #{userId}
+          and flight_id = #{flightId}
+    </update>
+
+    <select id="existsMealSelection" resultType="java.lang.Integer">
+        select count(1)
+        from meal_selection
+        where user_id = #{userId}
+          and flight_id = #{flightId}
+    </select>
+
+    <select id="latestManualSelection" resultType="java.util.HashMap">
+        select rl.recommended_dishes as recommendedDishes,
+               rl.algorithm_type as algorithmType,
+               rl.user_feedback as userFeedback,
+               rl.create_time as createTime
+        from recommendation_log rl
+        where rl.user_id = #{userId}
+          and rl.flight_id = #{flightId}
+          and rl.user_feedback like 'MANUAL_SELECTED%'
+        order by rl.id desc
+        limit 1
+    </select>
+
+    <update id="updateLatestManualRating">
+        update recommendation_log
+        set user_rating = #{rating}
+        where id = (
+            select id
+            from (
+                select rl.id
+                from recommendation_log rl
+                where rl.user_id = #{userId}
+                  and rl.flight_id = #{flightId}
+                  and rl.user_feedback like 'MANUAL_SELECTED%'
+                order by rl.id desc
+                limit 1
+            ) latest
+        )
+    </update>
+
+    <select id="listExpiredFlights" resultType="java.util.HashMap">
+        select fi.id,
+               fi.flight_number,
+               fi.departure,
+               fi.destination,
+               fi.selection_deadline,
+               fi.departure_time
+        from flight_info fi
+        where fi.status = 1
+          and fi.selection_deadline is not null
+          and fi.selection_deadline &lt;= #{now}
+          and (fi.departure_time is null or fi.departure_time &gt;= #{now})
+        order by fi.selection_deadline asc
+    </select>
+
+    <select id="listUsersWithoutSelectionByFlightId" resultType="java.util.HashMap">
+        select u.id as userId,
+               u.name,
+               u.current_flight_id as flightId,
+               u.preference_completed as preferenceCompleted
+        from user u
+        where u.current_flight_id = #{flightId}
+          and not exists(
+            select 1 from meal_selection ms
+            where ms.user_id = u.id
+              and ms.flight_id = #{flightId}
+          )
+    </select>
+
+    <select id="exceptionUsers" resultType="java.util.HashMap">
+        select u.id as userId,
+               ifnull(u.name, concat('旅客', u.id)) as userName,
+               u.id_number as idNumber,
+               u.current_flight_id as currentFlightId,
+               ifnull(u.preference_completed, 0) as preferenceCompleted,
+               case
+                   when u.id_number is null or trim(u.id_number) = '' then '缺少身份证'
+                   when u.current_flight_id is null then '缺少航班绑定'
+                   when ifnull(u.preference_completed, 0) = 0 then '偏好未完成'
+                   else '正常'
+               end as exceptionType
+        from user u
+        where (u.id_number is null or trim(u.id_number) = '')
+           or u.current_flight_id is null
+           or ifnull(u.preference_completed, 0) = 0
+        order by u.id desc
+    </select>
+
+    <select id="preferenceTags" resultType="java.util.HashMap">
+        select tag
+        from (
+                 select case when up.flavor_preferences like '%清淡%' then '清淡党' end as tag
+                 from user_preference up
+                 where up.user_id = #{userId}
+                 union all
+                 select case when up.flavor_preferences like '%低脂%' then '低脂偏好' end as tag
+                 from user_preference up
+                 where up.user_id = #{userId}
+                 union all
+                 select case when up.meal_type_preferences like '%1%' then '儿童餐需求' end as tag
+                 from user_preference up
+                 where up.user_id = #{userId}
+                 union all
+                 select case when up.meal_type_preferences like '%3%' then '清真餐需求' end as tag
+                 from user_preference up
+                 where up.user_id = #{userId}
+                 union all
+                 select case when count(1) &gt;= 3 then '高频预选用户' end as tag
+                 from meal_selection ms
+                 where ms.user_id = #{userId}
+             ) t
+        where tag is not null
+    </select>
+
+    <select id="countReminderLog" resultType="java.lang.Integer">
+        select count(1)
+        from flight_reminder_log
+        where flight_id = #{flightId}
+          and remind_type = #{remindType}
+          and flight_date = #{flightDate}
+    </select>
+
+    <insert id="insertReminderLog">
+        insert into flight_reminder_log
+        (flight_id, remind_type, flight_date, create_time)
+        values
+        (#{flightId}, #{remindType}, #{flightDate}, #{createdAt})
+    </insert>
+
+    <select id="ratingDashboard" resultType="java.util.HashMap">
+        select count(1) as totalCount,
+               sum(case when fr.rating_status = 'PENDING' then 1 else 0 end) as pendingCount,
+               sum(case when fr.rating_status = 'DEFERRED' then 1 else 0 end) as deferredCount,
+               sum(case when fr.rating_status = 'SUBMITTED' then 1 else 0 end) as submittedCount,
+               sum(case when fr.rating_status = 'EXPIRED' then 1 else 0 end) as expiredCount,
+               ifnull(avg(case when fr.rating_status = 'SUBMITTED' then fr.rating_score end), 0) as avgScore,
+               ifnull(round(sum(case when fr.rating_status = 'SUBMITTED' then 1 else 0 end) / nullif(count(1), 0) * 100, 2), 0) as submitRate
+        from flight_service_rating fr
+    </select>
+
+    <select id="ratingTaskList" resultType="java.util.HashMap">
+        select fr.id,
+               fr.user_id as userId,
+               ifnull(u.name, concat('旅客', fr.user_id)) as userName,
+               u.id_number as idNumber,
+               fr.flight_id as flightId,
+               fi.flight_number as flightNumber,
+               fi.departure,
+               fi.destination,
+               fi.departure_time as departureTime,
+               fi.arrival_time as arrivalTime,
+               fr.rating_status as ratingStatus,
+               fr.rating_score as ratingScore,
+               fr.defer_count as deferCount,
+               fr.next_remind_at as nextRemindAt,
+               fr.submitted_at as submittedAt,
+               fr.expire_at as expireAt,
+               fr.update_time as updateTime
+        from flight_service_rating fr
+                 left join user u on u.id = fr.user_id
+                 left join flight_info fi on fi.id = fr.flight_id
+        <where>
+            <if test="status != null and status != ''">
+                fr.rating_status = #{status}
+            </if>
+            <if test="flightNumber != null and flightNumber != ''">
+                and fi.flight_number like concat('%', #{flightNumber}, '%')
+            </if>
+            <if test="userKeyword != null and userKeyword != ''">
+                and (
+                    cast(fr.user_id as char) like concat('%', #{userKeyword}, '%')
+                    or ifnull(u.name, '') like concat('%', #{userKeyword}, '%')
+                    or ifnull(u.id_number, '') like concat('%', #{userKeyword}, '%')
+                )
+            </if>
+        </where>
+        order by fr.update_time desc, fr.id desc
+    </select>
+
+    <update id="reopenRatingTask">
+        update flight_service_rating
+        set rating_status = 'PENDING',
+            rating_score = null,
+            submitted_at = null,
+            next_remind_at = #{now},
+            update_time = #{now}
+        where id = #{id}
+    </update>
+
+    <update id="expireRatingTask">
+        update flight_service_rating
+        set rating_status = 'EXPIRED',
+            update_time = #{now}
+        where id = #{id}
+    </update>
+
+    <delete id="deleteRatingTask">
+        delete from flight_service_rating where id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="fun.hykgraph.mapper.UserMapper">
+
+    <insert id="insert">
+        insert into user (name, openid, create_time) VALUES
+        (#{name}, #{openid}, #{createTime})
+    </insert>
+
+    <update id="update">
+        update user
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="pic != null">pic = #{pic},</if>
+            <if test="idNumber != null">id_number = #{idNumber},</if>
+            <if test="preferenceCompleted != null">preference_completed = #{preferenceCompleted},</if>
+            <if test="currentFlightId != null">current_flight_id = #{currentFlightId}</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <insert id="insertByAdmin">
+        insert into user (
+            name,
+            openid,
+            phone,
+            gender,
+            id_number,
+            preference_completed,
+            current_flight_id,
+            create_time
+        ) values (
+            #{name},
+            #{openid},
+            #{phone},
+            #{gender},
+            #{idNumber},
+            #{preferenceCompleted},
+            #{currentFlightId},
+            #{createTime}
+        )
+    </insert>
+
+    <select id="countByMap" resultType="java.lang.Integer">
+        select count(id) from user
+        <where>
+            <if test="begin != null">
+                and create_time &gt;= #{begin}
+            </if>
+            <if test="end != null">
+                and create_time &lt;= #{end}
+            </if>
+        </where>;
+    </select>
+
+    <select id="listPassengersByFlightId" resultType="fun.hykgraph.vo.FlightPassengerVO">
+        select
+            u.id as userId,
+            ifnull(u.name, concat('旅客', u.id)) as name,
+            u.id_number as idNumber,
+            case
+                when u.id_number is not null and length(u.id_number) = 18
+                then timestampdiff(year, str_to_date(substring(u.id_number, 7, 8), '%Y%m%d'), curdate())
+                else null
+            end as age,
+            u.phone as phone,
+            case
+                when u.gender = 1 then '男'
+                when u.gender = 0 then '女'
+                else '未知'
+            end as gender,
+            case
+                when exists(
+                    select 1
+                    from user_preference up
+                    where up.user_id = u.id
+                ) then 1
+                else 0
+            end as preferenceCompleted,
+            case
+                when u.current_flight_id is not null then '已绑定'
+                else '未绑定'
+            end as bindStatus,
+            case
+                when exists(
+                    select 1
+                    from meal_selection ms
+                    where ms.user_id = u.id
+                      and ms.flight_id = #{flightId}
+                ) then '已选餐'
+                else '未选餐'
+            end as mealSelected
+        from user u
+        where u.current_flight_id = #{flightId}
+        order by u.id desc
+    </select>
+
+    <select id="listFlightsByIdNumber" resultType="fun.hykgraph.entity.FlightInfo">
+        select distinct fi.*
+        from user u
+                 inner join flight_info fi on fi.id = u.current_flight_id
+        where u.id_number = #{idNumber}
+        order by fi.departure_time desc, fi.id desc
+    </select>
+
+</mapper>

@@ -1,0 +1,14 @@
+aviation-food-recommend:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/aviation_food_recommend
+    username: root
+    password: 123456
+  redis:
+    host: localhost
+    port: 6379
+    database: 1
+  wechat:
+    # 下面这两句改成自己的，不然小程序登不上！
+    appid: wx9ee9782791eb0152
+    secret: 65954333cf6015bc224be16a129fcfc1

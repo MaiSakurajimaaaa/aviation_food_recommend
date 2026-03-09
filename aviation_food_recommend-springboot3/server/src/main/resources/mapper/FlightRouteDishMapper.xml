@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="fun.hykgraph.mapper.FlightRouteDishMapper">
+
+    <select id="listByFlightNumber" resultType="fun.hykgraph.vo.FlightMealBindingVO">
+        select frd.id,
+               fi.id as flight_id,
+               fi.flight_number,
+               fi.departure,
+               fi.destination,
+               frd.dish_id,
+               d.name as dish_name,
+               d.status as dish_status,
+               frd.dish_source,
+               frd.sort
+        from flight_route_dish frd
+                 inner join flight_info fi on fi.departure = frd.departure and fi.destination = frd.destination
+                 left join dish d on d.id = frd.dish_id
+        where fi.flight_number = #{flightNumber}
+        order by frd.sort asc, frd.id desc
+    </select>
+
+    <select id="countByFlightNumberAndDishId" resultType="java.lang.Integer">
+        select count(1)
+        from flight_route_dish frd
+                 inner join flight_info fi on fi.departure = frd.departure and fi.destination = frd.destination
+        where fi.flight_number = #{flightNumber}
+          and frd.dish_id = #{dishId}
+          <if test="excludeId != null">
+              and frd.id != #{excludeId}
+          </if>
+    </select>
+
+    <insert id="insertBinding">
+        insert into flight_route_dish
+        (departure, destination, dish_id, dish_source, sort)
+        values
+        (#{departure}, #{destination}, #{dishId}, #{dishSource}, #{sort})
+    </insert>
+
+    <update id="updateBinding">
+        update flight_route_dish
+        set departure = #{departure},
+            destination = #{destination},
+            dish_id = #{dishId},
+            dish_source = #{dishSource},
+            sort = #{sort}
+        where id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        delete
+        from flight_route_dish
+        where id = #{id}
+    </delete>
+
+</mapper>
