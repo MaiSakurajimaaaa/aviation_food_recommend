@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFlightListAPI, getFlightMealsAPI, addFlightMealAPI, updateFlightMealAPI, deleteFlightMealAPI } from '@/api/flight'
 import { getDishPageListAPI } from '@/api/dish'
@@ -10,13 +10,21 @@ const mealLoading = ref(false)
 const allFlights = ref<FlightItem[]>([])
 const mealBindings = ref<FlightMealBindingItem[]>([])
 const dishOptions = ref<Array<{ id: number; name: string; status: number }>>([])
-const flightNumberQuery = ref('')
+const queryForm = reactive({
+  flightNumber: '',
+  departure: '',
+  destination: '',
+})
+const appliedQuery = reactive({
+  flightNumber: '',
+  departure: '',
+  destination: '',
+})
 const selectedFlight = ref<FlightItem | null>(null)
 const mealDialogVisible = ref(false)
 const editingMealId = ref<number | null>(null)
 const mealForm = ref({
   dishId: undefined as number | undefined,
-  dishSource: 1,
   sort: 1,
 })
 const flightsPage = ref(1)
@@ -24,10 +32,47 @@ const flightsPageSize = ref(10)
 const mealsPage = ref(1)
 const mealsPageSize = ref(10)
 
+const FLIGHT_NUMBER_REGEX = /^[A-Za-z0-9-]+$/
+const HAS_ALNUM_REGEX = /[A-Za-z0-9]/
+
+const validatePlace = (value: string, fieldName: '出发地' | '目的地', required = false) => {
+  const trimmed = value.trim()
+  if (required && !trimmed) {
+    ElMessage.warning(`${fieldName}不能为空`)
+    return false
+  }
+  if (trimmed && HAS_ALNUM_REGEX.test(trimmed)) {
+    ElMessage.warning(`${fieldName}不能包含字母或数字`)
+    return false
+  }
+  return true
+}
+
+const validateQueryForm = () => {
+  const flightNumber = queryForm.flightNumber.trim()
+  if (flightNumber && !FLIGHT_NUMBER_REGEX.test(flightNumber)) {
+    ElMessage.warning('航班号只能包含字母、数字或中划线，不能输入汉字')
+    return false
+  }
+  if (!validatePlace(queryForm.departure, '出发地')) {
+    return false
+  }
+  if (!validatePlace(queryForm.destination, '目的地')) {
+    return false
+  }
+  return true
+}
+
 const filteredFlights = computed(() => {
-  const keyword = flightNumberQuery.value.trim().toUpperCase()
-  if (!keyword) return allFlights.value
-  return allFlights.value.filter((item) => (item.flightNumber || '').toUpperCase().includes(keyword))
+  const flightNumber = appliedQuery.flightNumber.trim().toUpperCase()
+  const departure = appliedQuery.departure.trim()
+  const destination = appliedQuery.destination.trim()
+  return allFlights.value.filter((item) => {
+    const numberMatched = !flightNumber || (item.flightNumber || '').toUpperCase().includes(flightNumber)
+    const departureMatched = !departure || (item.departure || '').includes(departure)
+    const destinationMatched = !destination || (item.destination || '').includes(destination)
+    return numberMatched && departureMatched && destinationMatched
+  })
 })
 
 const pagedFlights = computed(() => {
@@ -75,6 +120,13 @@ const selectFlight = async (row: FlightItem) => {
 }
 
 const search = () => {
+  if (!validateQueryForm()) {
+    return
+  }
+  appliedQuery.flightNumber = queryForm.flightNumber
+  appliedQuery.departure = queryForm.departure
+  appliedQuery.destination = queryForm.destination
+  flightsPage.value = 1
   if (!filteredFlights.value.length) {
     selectedFlight.value = null
     mealBindings.value = []
@@ -84,7 +136,12 @@ const search = () => {
 }
 
 const reset = () => {
-  flightNumberQuery.value = ''
+  queryForm.flightNumber = ''
+  queryForm.departure = ''
+  queryForm.destination = ''
+  appliedQuery.flightNumber = ''
+  appliedQuery.departure = ''
+  appliedQuery.destination = ''
   selectedFlight.value = null
   mealBindings.value = []
   flightsPage.value = 1
@@ -103,7 +160,6 @@ const openAddMealDialog = () => {
   editingMealId.value = null
   mealForm.value = {
     dishId: undefined,
-    dishSource: 1,
     sort: (mealBindings.value?.length || 0) + 1,
   }
   mealDialogVisible.value = true
@@ -113,7 +169,6 @@ const openEditMealDialog = (row: FlightMealBindingItem) => {
   editingMealId.value = row.id
   mealForm.value = {
     dishId: row.dishId,
-    dishSource: row.dishSource || 1,
     sort: row.sort || 1,
   }
   mealDialogVisible.value = true
@@ -128,10 +183,14 @@ const saveMeal = async () => {
     ElMessage.warning('请选择餐食')
     return
   }
+  if (!Number.isInteger(mealForm.value.sort) || (mealForm.value.sort || 0) < 1) {
+    ElMessage.warning('排序必须为大于0的整数')
+    return
+  }
   const payload: FlightMealBindingUpsertPayload = {
     flightNumber: selectedFlight.value.flightNumber,
     dishId: mealForm.value.dishId,
-    dishSource: mealForm.value.dishSource || 1,
+    dishSource: 1,
     sort: mealForm.value.sort || 1,
   }
   if (editingMealId.value) {
@@ -148,6 +207,10 @@ const saveMeal = async () => {
 }
 
 const removeMeal = (row: FlightMealBindingItem) => {
+  if (!Number.isInteger(row.id) || row.id <= 0) {
+    ElMessage.warning('删除失败：绑定ID无效')
+    return
+  }
   ElMessageBox.confirm('确认删除该航班餐食绑定吗？删除后不可恢复。', '提示', {
     type: 'warning',
   })
@@ -179,7 +242,13 @@ onMounted(async () => {
 
       <el-form inline>
         <el-form-item label="航班号">
-          <el-input v-model="flightNumberQuery" placeholder="请输入航班号" clearable />
+          <el-input v-model="queryForm.flightNumber" placeholder="请输入航班号" clearable />
+        </el-form-item>
+        <el-form-item label="出发地">
+          <el-input v-model="queryForm.departure" placeholder="请输入出发地" clearable />
+        </el-form-item>
+        <el-form-item label="目的地">
+          <el-input v-model="queryForm.destination" placeholder="请输入目的地" clearable />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="search">查询</el-button>
@@ -244,11 +313,6 @@ onMounted(async () => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="来源" width="100">
-          <template #default="scope">
-            {{ scope.row.dishSource === 1 ? '系统推荐' : '人工指定' }}
-          </template>
-        </el-table-column>
         <el-table-column prop="sort" label="排序" width="80" />
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="scope">
@@ -277,12 +341,6 @@ onMounted(async () => {
           <el-select v-model="mealForm.dishId" placeholder="请选择餐食" style="width: 100%" filterable>
             <el-option v-for="item in dishOptions" :key="item.id" :label="`${item.name}（ID:${item.id}）`" :value="item.id" />
           </el-select>
-        </el-form-item>
-        <el-form-item label="来源">
-          <el-radio-group v-model="mealForm.dishSource">
-            <el-radio :value="1">系统推荐</el-radio>
-            <el-radio :value="2">人工指定</el-radio>
-          </el-radio-group>
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="mealForm.sort" :min="1" :max="999" />

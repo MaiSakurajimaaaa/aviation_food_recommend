@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -22,7 +22,16 @@ const loading = ref(false)
 const passengerLoading = ref(false)
 const allFlights = ref<FlightItem[]>([])
 const passengers = ref<FlightPassengerItem[]>([])
-const flightNumberQuery = ref('')
+const queryForm = reactive({
+  flightNumber: '',
+  departure: '',
+  destination: '',
+})
+const appliedQuery = reactive({
+  flightNumber: '',
+  departure: '',
+  destination: '',
+})
 const selectedFlight = ref<FlightItem | null>(null)
 const passengerDialogVisible = ref(false)
 const editingPassengerId = ref<number | null>(null)
@@ -37,6 +46,39 @@ const flightsPageSize = ref(10)
 const passengersPage = ref(1)
 const passengersPageSize = ref(10)
 
+const FLIGHT_NUMBER_REGEX = /^[A-Za-z0-9-]+$/
+const HAS_ALNUM_REGEX = /[A-Za-z0-9]/
+const PHONE_REGEX = /^1\d{10}$/
+const ID_NUMBER_REGEX = /^(\d{17}[\dXx])$/
+
+const validatePlace = (value: string, fieldName: '出发地' | '目的地', required = false) => {
+  const trimmed = value.trim()
+  if (required && !trimmed) {
+    ElMessage.warning(`${fieldName}不能为空`)
+    return false
+  }
+  if (trimmed && HAS_ALNUM_REGEX.test(trimmed)) {
+    ElMessage.warning(`${fieldName}不能包含字母或数字`)
+    return false
+  }
+  return true
+}
+
+const validateQueryForm = () => {
+  const flightNumber = queryForm.flightNumber.trim()
+  if (flightNumber && !FLIGHT_NUMBER_REGEX.test(flightNumber)) {
+    ElMessage.warning('航班号只能包含字母、数字或中划线，不能输入汉字')
+    return false
+  }
+  if (!validatePlace(queryForm.departure, '出发地')) {
+    return false
+  }
+  if (!validatePlace(queryForm.destination, '目的地')) {
+    return false
+  }
+  return true
+}
+
 const loadData = async () => {
   loading.value = true
   const { data: res } = await getFlightListAPI()
@@ -47,9 +89,15 @@ const loadData = async () => {
 }
 
 const filteredFlights = computed(() => {
-  const keyword = flightNumberQuery.value.trim().toUpperCase()
-  if (!keyword) return allFlights.value
-  return allFlights.value.filter((item) => (item.flightNumber || '').toUpperCase().includes(keyword))
+  const flightNumber = appliedQuery.flightNumber.trim().toUpperCase()
+  const departure = appliedQuery.departure.trim()
+  const destination = appliedQuery.destination.trim()
+  return allFlights.value.filter((item) => {
+    const numberMatched = !flightNumber || (item.flightNumber || '').toUpperCase().includes(flightNumber)
+    const departureMatched = !departure || (item.departure || '').includes(departure)
+    const destinationMatched = !destination || (item.destination || '').includes(destination)
+    return numberMatched && departureMatched && destinationMatched
+  })
 })
 
 const pagedFlights = computed(() => {
@@ -64,7 +112,14 @@ const pagedPassengers = computed(() => {
 
 const syncFromRoute = () => {
   const queryFlightNumber = String(route.query.flightNumber || '')
-  flightNumberQuery.value = queryFlightNumber
+  const queryDeparture = String(route.query.departure || '')
+  const queryDestination = String(route.query.destination || '')
+  queryForm.flightNumber = queryFlightNumber
+  queryForm.departure = queryDeparture
+  queryForm.destination = queryDestination
+  appliedQuery.flightNumber = queryFlightNumber
+  appliedQuery.departure = queryDeparture
+  appliedQuery.destination = queryDestination
 }
 
 const loadPassengers = async (flightId: number) => {
@@ -115,6 +170,16 @@ const savePassenger = async () => {
     ElMessage.warning('请输入客户姓名')
     return
   }
+  const idNumber = passengerForm.value.idNumber?.trim()
+  if (idNumber && !ID_NUMBER_REGEX.test(idNumber)) {
+    ElMessage.warning('身份证号格式不正确')
+    return
+  }
+  const phone = passengerForm.value.phone?.trim()
+  if (phone && !PHONE_REGEX.test(phone)) {
+    ElMessage.warning('手机号格式不正确')
+    return
+  }
   const payload: FlightPassengerUpsertPayload = {
     flightId: selectedFlight.value.id,
     name: passengerForm.value.name.trim(),
@@ -136,6 +201,10 @@ const savePassenger = async () => {
 }
 
 const removePassenger = (row: FlightPassengerItem) => {
+  if (!Number.isInteger(row.userId) || row.userId <= 0) {
+    ElMessage.warning('删除失败：客户ID无效')
+    return
+  }
   ElMessageBox.confirm('确认删除该客户吗？删除后不可恢复。', '提示', {
     type: 'warning',
   })
@@ -151,8 +220,19 @@ const removePassenger = (row: FlightPassengerItem) => {
 }
 
 const autoSelectByQuery = () => {
-  const keyword = flightNumberQuery.value.trim().toUpperCase()
-  if (!keyword || !allFlights.value.length) return
+  if (!filteredFlights.value.length) {
+    selectedFlight.value = null
+    passengers.value = []
+    return
+  }
+  const keyword = appliedQuery.flightNumber.trim().toUpperCase()
+  if (!keyword || !allFlights.value.length) {
+    const first = filteredFlights.value[0]
+    if (first) {
+      selectFlight(first)
+    }
+    return
+  }
   const exact = allFlights.value.find((item) => (item.flightNumber || '').toUpperCase() === keyword)
   if (exact) {
     selectFlight(exact)
@@ -165,15 +245,31 @@ const autoSelectByQuery = () => {
 }
 
 const search = () => {
+  if (!validateQueryForm()) {
+    return
+  }
+  appliedQuery.flightNumber = queryForm.flightNumber
+  appliedQuery.departure = queryForm.departure
+  appliedQuery.destination = queryForm.destination
+  flightsPage.value = 1
   router.replace({
     path: '/flight-center',
-    query: flightNumberQuery.value ? { flightNumber: flightNumberQuery.value } : {},
+    query: {
+      ...(queryForm.flightNumber ? { flightNumber: queryForm.flightNumber } : {}),
+      ...(queryForm.departure ? { departure: queryForm.departure } : {}),
+      ...(queryForm.destination ? { destination: queryForm.destination } : {}),
+    },
   })
   autoSelectByQuery()
 }
 
 const reset = () => {
-  flightNumberQuery.value = ''
+  queryForm.flightNumber = ''
+  queryForm.departure = ''
+  queryForm.destination = ''
+  appliedQuery.flightNumber = ''
+  appliedQuery.departure = ''
+  appliedQuery.destination = ''
   selectedFlight.value = null
   passengers.value = []
   flightsPage.value = 1
@@ -207,7 +303,13 @@ onMounted(async () => {
 
       <el-form inline>
         <el-form-item label="航班号">
-          <el-input v-model="flightNumberQuery" placeholder="请输入航班号" clearable />
+          <el-input v-model="queryForm.flightNumber" placeholder="请输入航班号" clearable />
+        </el-form-item>
+        <el-form-item label="出发地">
+          <el-input v-model="queryForm.departure" placeholder="请输入出发地" clearable />
+        </el-form-item>
+        <el-form-item label="目的地">
+          <el-input v-model="queryForm.destination" placeholder="请输入目的地" clearable />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="search">查询</el-button>

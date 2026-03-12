@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,7 +18,6 @@ public class DishDTO implements Serializable {
     private String name;
     private String pic;
     private String detail;
-    private BigDecimal price;
     private String status;
     private Integer stock;
     private Integer categoryId;

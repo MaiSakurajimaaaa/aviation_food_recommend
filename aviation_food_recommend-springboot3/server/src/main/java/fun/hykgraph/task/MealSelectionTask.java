@@ -84,11 +84,6 @@ public class MealSelectionTask {
     }
 
     private void sendReminder(FlightInfo flight, String remindType) {
-        String flightDate = flight.getDepartureTime().toLocalDate().toString();
-        Integer exists = recommendationMapper.countReminderLog(flight.getId(), remindType, flightDate);
-        if (exists != null && exists > 0) {
-            return;
-        }
         FlightAnnouncement announcement = new FlightAnnouncement();
         announcement.setFlightId(flight.getId());
         announcement.setTitle(flight.getFlightNumber() + " 选餐提醒 " + remindType);
@@ -98,7 +93,6 @@ public class MealSelectionTask {
         announcement.setCreateTime(LocalDateTime.now());
         announcement.setUpdateTime(LocalDateTime.now());
         announcementMapper.insert(announcement);
-        recommendationMapper.insertReminderLog(flight.getId(), remindType, flightDate, LocalDateTime.now());
     }
 
     private void autoPickForUser(Integer userId, FlightInfo flight) {

@@ -5,7 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -17,7 +16,6 @@ public class Setmeal implements Serializable {
     private String name;
     private String pic;
     private String detail;
-    private BigDecimal price;
     private Integer status;
     private Integer categoryId;
     private Integer createUser;

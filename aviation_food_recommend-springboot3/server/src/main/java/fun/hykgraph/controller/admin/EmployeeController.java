@@ -55,16 +55,6 @@ public class EmployeeController {
     }
 
     /**
-     * 员工注册（其实就是新增操作而已，和token什么的无关！）
-     * @return
-     */
-    @PostMapping("/register")
-    public Result register(@RequestBody EmployeeLoginDTO employeeLoginDTO){
-        log.warn("注册接口已禁用，拒绝请求账号:{}", employeeLoginDTO.getAccount());
-        return Result.error("注册功能已关闭，请联系超级管理员admin创建账号");
-    }
-
-    /**
      * 修改当前登录账号的密码
      * @param employeeFixPwdDTO
      * @return

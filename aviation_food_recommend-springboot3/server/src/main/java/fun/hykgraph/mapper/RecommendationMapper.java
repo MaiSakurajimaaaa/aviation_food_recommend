@@ -78,15 +78,6 @@ public interface RecommendationMapper {
 
     List<Map<String, Object>> preferenceTags(@Param("userId") Integer userId);
 
-    Integer countReminderLog(@Param("flightId") Integer flightId,
-                             @Param("remindType") String remindType,
-                             @Param("flightDate") String flightDate);
-
-    Integer insertReminderLog(@Param("flightId") Integer flightId,
-                              @Param("remindType") String remindType,
-                              @Param("flightDate") String flightDate,
-                              @Param("createdAt") LocalDateTime createdAt);
-
     Map<String, Object> ratingDashboard();
 
     List<Map<String, Object>> ratingTaskList(@Param("status") String status,

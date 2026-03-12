@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { addFlightAPI, deleteFlightAPI, getFlightListAPI, updateFlightAPI } from '@/api/flight'
@@ -9,16 +9,24 @@ const router = useRouter()
 
 const list = ref<FlightItem[]>([])
 const loading = ref(false)
+const addDialogVisible = ref(false)
 const editDialogVisible = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 
-const pagedList = computed(() => {
-  const start = (page.value - 1) * pageSize.value
-  return list.value.slice(start, start + pageSize.value)
+const queryForm = reactive({
+  flightNumber: '',
+  departure: '',
+  destination: '',
 })
 
-const form = reactive({
+const appliedQuery = reactive({
+  flightNumber: '',
+  departure: '',
+  destination: '',
+})
+
+const addForm = reactive({
   flightNumber: '',
   departure: '',
   destination: '',
@@ -27,6 +35,23 @@ const form = reactive({
   durationMinutes: 120,
   selectionDeadline: '',
   mealTimes: '["起飞后1小时"]',
+})
+
+const filteredList = computed(() => {
+  const flightNumber = appliedQuery.flightNumber.trim().toUpperCase()
+  const departure = appliedQuery.departure.trim()
+  const destination = appliedQuery.destination.trim()
+  return list.value.filter((item) => {
+    const flightMatched = !flightNumber || (item.flightNumber || '').toUpperCase().includes(flightNumber)
+    const departureMatched = !departure || (item.departure || '').includes(departure)
+    const destinationMatched = !destination || (item.destination || '').includes(destination)
+    return flightMatched && departureMatched && destinationMatched
+  })
+})
+
+const pagedList = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return filteredList.value.slice(start, start + pageSize.value)
 })
 
 const editForm = reactive({
@@ -41,6 +66,48 @@ const editForm = reactive({
   mealCount: 1,
   status: 1,
 })
+
+const FLIGHT_NUMBER_REGEX = /^[A-Za-z0-9-]+$/
+const HAS_ALNUM_REGEX = /[A-Za-z0-9]/
+
+const validateFlightNumber = (flightNumber: string) => {
+  if (!flightNumber.trim()) {
+    ElMessage.warning('航班号不能为空')
+    return false
+  }
+  if (!FLIGHT_NUMBER_REGEX.test(flightNumber.trim())) {
+    ElMessage.warning('航班号只能包含字母、数字或中划线，不能输入汉字')
+    return false
+  }
+  return true
+}
+
+const validatePlace = (value: string, fieldName: '出发地' | '目的地', required = true) => {
+  const trimmed = value.trim()
+  if (required && !trimmed) {
+    ElMessage.warning(`${fieldName}不能为空`)
+    return false
+  }
+  if (trimmed && HAS_ALNUM_REGEX.test(trimmed)) {
+    ElMessage.warning(`${fieldName}不能包含字母或数字`)
+    return false
+  }
+  return true
+}
+
+const validateQueryForm = () => {
+  if (queryForm.flightNumber.trim() && !FLIGHT_NUMBER_REGEX.test(queryForm.flightNumber.trim())) {
+    ElMessage.warning('查询条件中航班号格式不正确，不能输入汉字')
+    return false
+  }
+  if (!validatePlace(queryForm.departure, '出发地', false)) {
+    return false
+  }
+  if (!validatePlace(queryForm.destination, '目的地', false)) {
+    return false
+  }
+  return true
+}
 
 const calcDurationMinutes = (departureTime?: string, arrivalTime?: string) => {
   if (!departureTime || !arrivalTime) return null
@@ -62,6 +129,15 @@ const validateFlightForm = (source: {
 }) => {
   if (!source.flightNumber || !source.departure || !source.destination || !source.departureTime || !source.arrivalTime) {
     ElMessage.warning('请完善航班号、出发地、目的地、起飞和到达时间')
+    return null
+  }
+  if (!validateFlightNumber(source.flightNumber)) {
+    return null
+  }
+  if (!validatePlace(source.departure, '出发地')) {
+    return null
+  }
+  if (!validatePlace(source.destination, '目的地')) {
     return null
   }
   const duration = calcDurationMinutes(source.departureTime, source.arrivalTime)
@@ -88,17 +164,46 @@ const loadData = async () => {
   list.value = res.data || []
 }
 
+const applyQuery = () => {
+  if (!validateQueryForm()) {
+    return
+  }
+  appliedQuery.flightNumber = queryForm.flightNumber
+  appliedQuery.departure = queryForm.departure
+  appliedQuery.destination = queryForm.destination
+  page.value = 1
+}
+
+const resetQuery = () => {
+  queryForm.flightNumber = ''
+  queryForm.departure = ''
+  queryForm.destination = ''
+  applyQuery()
+}
+
+const openAddDialog = () => {
+  addForm.flightNumber = ''
+  addForm.departure = ''
+  addForm.destination = ''
+  addForm.departureTime = ''
+  addForm.arrivalTime = ''
+  addForm.durationMinutes = 120
+  addForm.selectionDeadline = ''
+  addForm.mealTimes = '["起飞后1小时"]'
+  addDialogVisible.value = true
+}
+
 const addFlight = async () => {
-  const duration = validateFlightForm(form)
+  const duration = validateFlightForm(addForm)
   if (duration == null) {
     return
   }
-  form.durationMinutes = duration
+  addForm.durationMinutes = duration
   const payload: FlightUpsertPayload = {
-    ...form,
-    flightNumber: form.flightNumber.trim().toUpperCase(),
-    departure: form.departure.trim(),
-    destination: form.destination.trim(),
+    ...addForm,
+    flightNumber: addForm.flightNumber.trim().toUpperCase(),
+    departure: addForm.departure.trim(),
+    destination: addForm.destination.trim(),
     durationMinutes: duration,
     mealCount: duration >= 180 ? 2 : 1,
     status: 1,
@@ -106,17 +211,15 @@ const addFlight = async () => {
   const { data: res } = await addFlightAPI(payload)
   if (res.code !== 0) return
   ElMessage.success('新增航班成功')
-  form.flightNumber = ''
-  form.departure = ''
-  form.destination = ''
-  form.departureTime = ''
-  form.arrivalTime = ''
-  form.durationMinutes = 120
-  form.selectionDeadline = ''
+  addDialogVisible.value = false
   loadData()
 }
 
 const removeFlight = async (id: number) => {
+  if (!Number.isInteger(id) || id <= 0) {
+    ElMessage.warning('删除失败：航班ID无效')
+    return
+  }
   ElMessageBox.confirm('确认删除该航班吗？', '提示', {
     type: 'warning',
   })
@@ -171,6 +274,16 @@ const goFlightCenter = (flightNumber: string) => {
   })
 }
 
+watch(
+  () => [pageSize.value, filteredList.value.length],
+  () => {
+    const maxPage = Math.max(1, Math.ceil(filteredList.value.length / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+    }
+  },
+)
+
 onMounted(loadData)
 </script>
 
@@ -180,42 +293,18 @@ onMounted(loadData)
       <template #header>
         <div class="header-row">
           <span>航班信息管理</span>
-          <el-button @click="loadData">刷新</el-button>
+          <div class="header-actions">
+            <el-button type="primary" @click="openAddDialog">新增航班</el-button>
+            <el-button @click="loadData">刷新</el-button>
+          </div>
         </div>
       </template>
       <el-form inline>
-        <el-form-item label="航班号"><el-input v-model="form.flightNumber" /></el-form-item>
-        <el-form-item label="出发地"><el-input v-model="form.departure" /></el-form-item>
-        <el-form-item label="目的地"><el-input v-model="form.destination" /></el-form-item>
-        <el-form-item label="起飞时间">
-          <el-date-picker
-            v-model="form.departureTime"
-            type="datetime"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            format="YYYY-MM-DD HH:mm:ss"
-            placeholder="请选择起飞时间"
-          />
-        </el-form-item>
-        <el-form-item label="到达时间">
-          <el-date-picker
-            v-model="form.arrivalTime"
-            type="datetime"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            format="YYYY-MM-DD HH:mm:ss"
-            placeholder="请选择到达时间"
-          />
-        </el-form-item>
-        <el-form-item label="飞行时长(分钟)"><el-input-number v-model="form.durationMinutes" :min="30" /></el-form-item>
-        <el-form-item label="预选截止">
-          <el-date-picker
-            v-model="form.selectionDeadline"
-            type="datetime"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            format="YYYY-MM-DD HH:mm:ss"
-            placeholder="请选择截止时间"
-          />
-        </el-form-item>
-        <el-form-item><el-button type="primary" @click="addFlight">新增航班</el-button></el-form-item>
+        <el-form-item label="航班号"><el-input v-model="queryForm.flightNumber" placeholder="请输入航班号" clearable /></el-form-item>
+        <el-form-item label="出发地"><el-input v-model="queryForm.departure" placeholder="请输入出发地" clearable /></el-form-item>
+        <el-form-item label="目的地"><el-input v-model="queryForm.destination" placeholder="请输入目的地" clearable /></el-form-item>
+        <el-form-item><el-button type="primary" @click="applyQuery">查询</el-button></el-form-item>
+        <el-form-item><el-button @click="resetQuery">重置</el-button></el-form-item>
       </el-form>
 
       <el-table :data="pagedList" border v-loading="loading">
@@ -256,11 +345,53 @@ onMounted(loadData)
         v-model:current-page="page"
         v-model:page-size="pageSize"
         :page-sizes="[10, 15, 20]"
-        :total="list.length"
+        :total="filteredList.length"
         layout="total, sizes, prev, pager, next, jumper"
         background
       />
     </el-card>
+
+    <el-dialog v-model="addDialogVisible" title="新增航班" width="520px">
+      <el-form label-width="100px">
+        <el-form-item label="航班号"><el-input v-model="addForm.flightNumber" /></el-form-item>
+        <el-form-item label="出发地"><el-input v-model="addForm.departure" /></el-form-item>
+        <el-form-item label="目的地"><el-input v-model="addForm.destination" /></el-form-item>
+        <el-form-item label="起飞时间">
+          <el-date-picker
+            v-model="addForm.departureTime"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            format="YYYY-MM-DD HH:mm:ss"
+            placeholder="请选择起飞时间"
+          />
+        </el-form-item>
+        <el-form-item label="到达时间">
+          <el-date-picker
+            v-model="addForm.arrivalTime"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            format="YYYY-MM-DD HH:mm:ss"
+            placeholder="请选择到达时间"
+          />
+        </el-form-item>
+        <el-form-item label="飞行时长">
+          <el-input-number v-model="addForm.durationMinutes" :min="30" />
+        </el-form-item>
+        <el-form-item label="预选截止">
+          <el-date-picker
+            v-model="addForm.selectionDeadline"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            format="YYYY-MM-DD HH:mm:ss"
+            placeholder="请选择截止时间"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="addFlight">新增</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="editDialogVisible" title="编辑航班" width="520px">
       <el-form label-width="100px">
@@ -315,6 +446,11 @@ onMounted(loadData)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .table-pagination {

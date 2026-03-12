@@ -9,13 +9,22 @@ const queryForm = ref({
   flightNumber: '',
   name: '',
   idNumber: '',
+  mealSelection: 'all',
 })
 const page = ref(1)
 const pageSize = ref(10)
 
+const filteredList = computed(() => {
+  if (queryForm.value.mealSelection === 'all') return list.value
+  return list.value.filter((item) => {
+    const hasSelection = Number(item.dishCount || 0) > 0
+    return queryForm.value.mealSelection === 'selected' ? hasSelection : !hasSelection
+  })
+})
+
 const pagedList = computed(() => {
   const start = (page.value - 1) * pageSize.value
-  return list.value.slice(start, start + pageSize.value)
+  return filteredList.value.slice(start, start + pageSize.value)
 })
 
 const loadData = async () => {
@@ -30,11 +39,21 @@ const loadData = async () => {
   list.value = res.data || []
 }
 
+const search = async () => {
+  page.value = 1
+  await loadData()
+}
+
+const onMealSelectionChange = () => {
+  page.value = 1
+}
+
 const reset = async () => {
   queryForm.value = {
     flightNumber: '',
     name: '',
     idNumber: '',
+    mealSelection: 'all',
   }
   page.value = 1
   await loadData()
@@ -105,8 +124,15 @@ onMounted(loadData)
         <el-form-item label="身份证号">
           <el-input v-model="queryForm.idNumber" placeholder="请输入身份证号" clearable />
         </el-form-item>
+        <el-form-item label="是否选餐">
+          <el-select v-model="queryForm.mealSelection" style="width: 120px" @change="onMealSelectionChange">
+            <el-option label="全部" value="all" />
+            <el-option label="已选餐" value="selected" />
+            <el-option label="未选餐" value="unselected" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadData">查询</el-button>
+          <el-button type="primary" @click="search">查询</el-button>
           <el-button @click="reset">重置</el-button>
         </el-form-item>
       </el-form>
@@ -142,7 +168,7 @@ onMounted(loadData)
         v-model:current-page="page"
         v-model:page-size="pageSize"
         :page-sizes="[10, 15, 20]"
-        :total="list.length"
+        :total="filteredList.length"
         layout="total, sizes, prev, pager, next, jumper"
         background
       />

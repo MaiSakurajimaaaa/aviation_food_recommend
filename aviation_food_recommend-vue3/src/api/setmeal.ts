@@ -5,14 +5,12 @@ type SetmealDishItem = {
   dishId: number
   copies: number
   name?: string
-  price?: number | string
 }
 
 type SetmealUpsertParams = {
   id?: number
   name: string
   categoryId: number | string
-  price: number | string
   status?: number | string
   detail?: string
   pic?: string
@@ -31,7 +29,6 @@ type SetmealItem = {
   id: number
   name: string
   categoryId: number
-  price: number
   status: number
   detail?: string
   pic?: string

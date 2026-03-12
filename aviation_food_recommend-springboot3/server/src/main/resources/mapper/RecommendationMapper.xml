@@ -348,21 +348,6 @@
         where tag is not null
     </select>
 
-    <select id="countReminderLog" resultType="java.lang.Integer">
-        select count(1)
-        from flight_reminder_log
-        where flight_id = #{flightId}
-          and remind_type = #{remindType}
-          and flight_date = #{flightDate}
-    </select>
-
-    <insert id="insertReminderLog">
-        insert into flight_reminder_log
-        (flight_id, remind_type, flight_date, create_time)
-        values
-        (#{flightId}, #{remindType}, #{flightDate}, #{createdAt})
-    </insert>
-
     <select id="ratingDashboard" resultType="java.util.HashMap">
         select count(1) as totalCount,
                sum(case when fr.rating_status = 'PENDING' then 1 else 0 end) as pendingCount,

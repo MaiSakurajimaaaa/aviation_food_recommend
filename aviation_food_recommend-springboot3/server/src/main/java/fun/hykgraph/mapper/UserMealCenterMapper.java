@@ -9,10 +9,6 @@ import java.util.List;
 @Mapper
 public interface UserMealCenterMapper {
 
-    List<UserMealSelectionVO> listSelectionsByOrders(@Param("flightNumber") String flightNumber,
-                                                     @Param("name") String name,
-                                                     @Param("idNumber") String idNumber);
-
     List<UserMealSelectionVO> listSelectionsByMealSelection(@Param("flightNumber") String flightNumber,
                                                             @Param("name") String name,
                                                             @Param("idNumber") String idNumber);

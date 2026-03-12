@@ -3,41 +3,6 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="fun.hykgraph.mapper.UserMealCenterMapper">
 
-    <select id="listSelectionsByOrders" resultType="fun.hykgraph.vo.UserMealSelectionVO">
-        select u.id as user_id,
-               u.name as user_name,
-               u.id_number,
-               u.phone,
-               fi.id as flight_id,
-               fi.flight_number,
-               fi.departure,
-               fi.destination,
-               o.id as order_id,
-               o.number as order_number,
-               o.status as order_status,
-               o.order_time,
-               od.dish_id,
-               od.name as dish_name,
-               od.dish_flavor,
-               od.number as dish_count
-        from orders o
-                 inner join order_detail od on od.order_id = o.id
-                 inner join user u on u.id = o.user_id
-                 left join flight_info fi on fi.id = u.current_flight_id
-        <where>
-            <if test="flightNumber != null and flightNumber != ''">
-                and fi.flight_number like concat('%', #{flightNumber}, '%')
-            </if>
-            <if test="name != null and name != ''">
-                and u.name like concat('%', #{name}, '%')
-            </if>
-            <if test="idNumber != null and idNumber != ''">
-                and u.id_number like concat('%', #{idNumber}, '%')
-            </if>
-        </where>
-        order by o.order_time desc, o.id desc, od.id asc
-    </select>
-
     <select id="listSelectionsByMealSelection" resultType="fun.hykgraph.vo.UserMealSelectionVO">
         select u.id as user_id,
                u.name as user_name,

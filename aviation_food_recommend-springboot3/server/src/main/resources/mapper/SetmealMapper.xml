@@ -4,9 +4,9 @@
 <mapper namespace="fun.hykgraph.mapper.SetmealMapper">
 
     <insert id="addSetmeal" useGeneratedKeys="true" keyProperty="id">
-        insert into setmeal (name, pic, detail, price, category_id, create_user, update_user, create_time, update_time)
+        insert into setmeal (name, pic, detail, category_id, create_user, update_user, create_time, update_time)
         VALUES
-        (#{name}, #{pic}, #{detail}, #{price}, #{categoryId},
+        (#{name}, #{pic}, #{detail}, #{categoryId},
          #{createUser}, #{updateUser}, #{createTime}, #{updateTime})
     </insert>
 
@@ -16,7 +16,6 @@
             <if test="name != null">name = #{name},</if>
             <if test="pic != null">pic = #{pic},</if>
             <if test="detail != null">detail = #{detail},</if>
-            <if test="price != null">price = #{price},</if>
             <if test="categoryId != null">category_id = #{categoryId},</if>
             <if test="createUser != null">create_user = #{createUser},</if>
             <if test="updateUser != null">update_user = #{updateUser},</if>
