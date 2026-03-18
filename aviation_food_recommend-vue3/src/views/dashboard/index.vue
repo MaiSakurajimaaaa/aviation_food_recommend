@@ -133,27 +133,29 @@ const loadTop = async () => {
 
 const loadData = async () => {
   loading.value = true
-  const [dashRes, flightRes, annRes] = await Promise.all([
-    getRecommendationDashboardAPI(),
-    getFlightListAPI(),
-    getAnnouncementListAPI(),
-  ])
-  loading.value = false
+  try {
+    const [dashRes, flightRes, annRes] = await Promise.all([
+      getRecommendationDashboardAPI(),
+      getFlightListAPI(),
+      getAnnouncementListAPI(),
+    ])
 
-  if (dashRes.data.code === 0) {
-    dashboard.value = dashRes.data.data || dashboard.value
+    if (dashRes.data.code === 0) {
+      dashboard.value = dashRes.data.data || dashboard.value
+    }
+    if (flightRes.data.code === 0) {
+      const flights = flightRes.data.data || []
+      flightCount.value = flights.length
+    }
+    if (annRes.data.code === 0) {
+      const announcements = annRes.data.data || []
+      announcementCount.value = announcements.length
+      recentAnnouncements.value = announcements
+    }
+    await loadTop()
+  } finally {
+    loading.value = false
   }
-  if (flightRes.data.code === 0) {
-    const flights = flightRes.data.data || []
-    flightCount.value = flights.length
-  }
-  if (annRes.data.code === 0) {
-    const announcements = annRes.data.data || []
-    announcementCount.value = announcements.length
-    recentAnnouncements.value = announcements
-  }
-  await loadTop()
-  loading.value = false
 }
 
 const onRangeChange = async () => {

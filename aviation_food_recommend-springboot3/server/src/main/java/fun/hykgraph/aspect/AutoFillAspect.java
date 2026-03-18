@@ -61,7 +61,7 @@ public class AutoFillAspect {
                 setCreateTime.invoke(entity, now);
                 setUpdateTime.invoke(entity, now);
             } catch (Exception e) {
-                e.printStackTrace();
+                log.warn("INSERT 自动填充失败, entityType={}", entity.getClass().getName(), e);
             }
         } else if (operationType == OperationType.REG) {
             // 为注册的2个公共时间字段赋值，因为一开始无法获得线程id(管理员登录新增员工那个才有)，user字段手动设置100表示自己操作
@@ -72,7 +72,7 @@ public class AutoFillAspect {
                 setCreateTime.invoke(entity, now);
                 setUpdateTime.invoke(entity, now);
             } catch (Exception e) {
-                e.printStackTrace();
+                log.warn("REG 自动填充失败, entityType={}", entity.getClass().getName(), e);
             }
         } else if (operationType == OperationType.UPDATE) {
             // 为2个公共字段赋值
@@ -83,7 +83,7 @@ public class AutoFillAspect {
                 setUpdateUser.invoke(entity, currentId);
                 setUpdateTime.invoke(entity, now);
             } catch (Exception e) {
-                e.printStackTrace();
+                log.warn("UPDATE 自动填充失败, entityType={}", entity.getClass().getName(), e);
             }
         }
     }

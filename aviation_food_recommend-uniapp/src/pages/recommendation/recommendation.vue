@@ -87,9 +87,11 @@
 
     <view v-if="list.length" class="dish-window">
       <swiper
+        :key="swiperKey"
         class="dish-swiper"
         :current="swiperCurrent"
         :circular="list.length > 1"
+        :duration="280"
         previous-margin="16rpx"
         next-margin="16rpx"
         @change="onSwiperChange"
@@ -116,14 +118,14 @@
                 <view class="meta-tag">候选 {{ index + 1 }}</view>
               </view>
               <view class="dish-meta">推荐依据：{{ item.explainReason || '基础营养均衡推荐' }}</view>
-              <button
+              <view
                 class="choose-btn"
                 :class="{ disabled: isSelectionClosed || isDishCurrentSelected(item), selected: isDishCurrentSelected(item) }"
-                :disabled="isSelectionClosed || isDishCurrentSelected(item)"
+                :hover-class="isSelectionClosed || isDishCurrentSelected(item) ? 'none' : 'choose-btn-hover'"
                 @click="goSelect(item)"
               >
                 {{ selectionActionText(item) }}
-              </button>
+              </view>
             </view>
           </view>
         </swiper-item>
@@ -182,6 +184,7 @@ const candidateFlights = ref<FlightInfo[]>([])
 const currentFlight = ref<FlightInfo | null>(null)
 const selectedFlightIndex = ref(0)
 const swiperCurrent = ref(0)
+const swiperKey = ref(0)
 const loading = ref(false)
 const {loadFlightContext: loadFlightContextData} = useFlightContext()
 const fallbackDishImages = ['/static/images/swp1.png', '/static/images/swp2.png', '/static/images/swp3.png']
@@ -359,6 +362,7 @@ const loadFlightContext = async () => {
 }
 
 const loadRecommendationData = async () => {
+  const currentDishId = list.value[swiperCurrent.value]?.dishId
   const [recRes, rankRes, historyRes, pendingRes] = await Promise.all([
     getRecommendationListAPI({
       flavor: selectedFlavor.value || undefined,
@@ -373,9 +377,21 @@ const loadRecommendationData = async () => {
   ranking.value = rankRes.data || []
   recommendationHistory.value = historyRes.data || []
   pendingRatingList.value = pendingRes.data || []
-  if (swiperCurrent.value >= list.value.length) {
-    swiperCurrent.value = Math.max(0, list.value.length - 1)
+
+  // Swiper data is refreshed frequently (onShow, filter changes). Rebuild and relocate
+  // current index to prevent circular swiper state from getting stuck on one direction.
+  let nextIndex = 0
+  if (currentDishId != null) {
+    const matchedIndex = list.value.findIndex((item) => item.dishId === currentDishId)
+    if (matchedIndex >= 0) {
+      nextIndex = matchedIndex
+    }
   }
+  if (nextIndex >= list.value.length) {
+    nextIndex = Math.max(0, list.value.length - 1)
+  }
+  swiperCurrent.value = nextIndex
+  swiperKey.value += 1
 }
 
 const loadData = async () => {
@@ -896,6 +912,10 @@ onShow(() => {
 .choose-btn.selected {
   background: #eef4fa;
   color: #68839d;
+}
+
+.choose-btn-hover {
+  opacity: 0.92;
 }
 
 .swiper-indicator {
