@@ -26,12 +26,12 @@
                 and d.flavor_tags like concat('%', #{flavor}, '%')
             </if>
             <if test="flightId != null">
-                and (frd.id is null or frd.id in (
+                and frd.id in (
                     select id from flight_route_dish
                     where dish_id = d.id
                       and departure = (select departure from flight_info where id = #{flightId})
                       and destination = (select destination from flight_info where id = #{flightId})
-                ))
+                )
             </if>
         </where>
         order by d.id desc
@@ -92,7 +92,10 @@
                         select user_id, flight_id, max(id) as latest_id
                         from recommendation_log
                         where user_id = #{userId}
-                            and user_feedback like 'MANUAL_SELECTED%'
+                            and (
+                                user_feedback like 'MANUAL_SELECTED%'
+                                or user_feedback like 'AUTO_SELECTED_OVERDUE%'
+                            )
                         group by user_id, flight_id
                 ) latest on latest.latest_id = rl.id
                 where rl.user_id = #{userId}
@@ -217,9 +220,9 @@
 
     <insert id="insertMealSelection">
         insert into meal_selection
-        (number, status, user_id, flight_id, seat_number, create_time, update_time)
+        (number, status, user_id, flight_id, meal_order, seat_number, create_time, update_time)
         values
-        (#{number}, #{status}, #{userId}, #{flightId}, #{seatNumber}, #{createTime}, #{updateTime})
+        (#{number}, #{status}, #{userId}, #{flightId}, #{mealOrder}, #{seatNumber}, #{createTime}, #{updateTime})
     </insert>
 
         <update id="updateMealSelectionUpdateTime">
@@ -227,6 +230,7 @@
                 set update_time = #{updateTime}
                 where user_id = #{userId}
                     and flight_id = #{flightId}
+                    and meal_order = #{mealOrder}
         </update>
 
     <update id="updateMealSelectionStatusAndUpdateTime">
@@ -235,6 +239,7 @@
             update_time = #{updateTime}
         where user_id = #{userId}
           and flight_id = #{flightId}
+                    and meal_order = #{mealOrder}
     </update>
 
     <select id="existsMealSelection" resultType="java.lang.Integer">
@@ -242,6 +247,7 @@
         from meal_selection
         where user_id = #{userId}
           and flight_id = #{flightId}
+                    and meal_order = #{mealOrder}
     </select>
 
     <select id="latestManualSelection" resultType="java.util.HashMap">
@@ -253,6 +259,10 @@
         where rl.user_id = #{userId}
           and rl.flight_id = #{flightId}
           and rl.user_feedback like 'MANUAL_SELECTED%'
+                    and (
+                                rl.user_feedback like concat('%mealOrder=', #{mealOrder}, '%')
+                                or (#{mealOrder} = 1 and rl.user_feedback not like '%mealOrder=%')
+                    )
         order by rl.id desc
         limit 1
     </select>
@@ -268,6 +278,10 @@
                 where rl.user_id = #{userId}
                   and rl.flight_id = #{flightId}
                   and rl.user_feedback like 'MANUAL_SELECTED%'
+                                    and (
+                                                rl.user_feedback like concat('%mealOrder=', #{mealOrder}, '%')
+                                                or (#{mealOrder} = 1 and rl.user_feedback not like '%mealOrder=%')
+                                    )
                 order by rl.id desc
                 limit 1
             ) latest

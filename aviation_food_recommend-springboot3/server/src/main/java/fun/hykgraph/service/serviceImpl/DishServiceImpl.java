@@ -8,12 +8,9 @@ import fun.hykgraph.dto.DishDTO;
 import fun.hykgraph.dto.DishPageDTO;
 import fun.hykgraph.entity.Dish;
 import fun.hykgraph.entity.DishFlavor;
-import fun.hykgraph.entity.Setmeal;
 import fun.hykgraph.exception.DeleteNotAllowedException;
 import fun.hykgraph.mapper.DishFlavorMapper;
 import fun.hykgraph.mapper.DishMapper;
-import fun.hykgraph.mapper.SetmealDishMapper;
-import fun.hykgraph.mapper.SetmealMapper;
 import fun.hykgraph.result.PageResult;
 import fun.hykgraph.service.DishService;
 import fun.hykgraph.vo.DishVO;
@@ -31,8 +28,6 @@ public class DishServiceImpl implements DishService {
     private DishMapper dishMapper;
     @Autowired
     private DishFlavorMapper dishFlavorMapper;
-    @Autowired
-    private SetmealDishMapper setmealDishMapper;
 
     /**
      * 新增菜品
@@ -126,12 +121,7 @@ public class DishServiceImpl implements DishService {
                 throw new DeleteNotAllowedException(MessageConstant.DISH_ON_SALE);
             }
         }
-        // 2. 遍历所有菜品，如果有关联套餐也不能删除
-        List<Integer> setmealIds = setmealDishMapper.getSetmealIdsByDishIds(ids);
-        if (setmealIds != null && !setmealIds.isEmpty()){
-            throw new DeleteNotAllowedException(MessageConstant.DISH_BE_RELATED_BY_SETMEAL);
-        }
-        // 可以批量删除菜品和对应口味数据了
+        // 2. 可以批量删除菜品和对应口味数据
         dishMapper.deleteBatch(ids);
         dishFlavorMapper.deleteBatch(ids);
     }

@@ -38,6 +38,7 @@ export interface RecommendationTopItem {
 export interface MealSelectResult {
   flightId: number
   dishId: number
+  mealOrder?: number
   selectedAt: string
   modified: boolean
   selectionDeadline?: string
@@ -62,6 +63,8 @@ export interface PendingRatingInfo {
 
 export interface RecommendConfirmPayload {
   dishId: number
+  mealOrder?: number
+  mealOrderLabel?: string
   dishName: string
   detail?: string
   mealType?: number

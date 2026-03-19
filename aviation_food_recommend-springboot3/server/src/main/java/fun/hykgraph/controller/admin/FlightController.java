@@ -6,6 +6,7 @@ import fun.hykgraph.dto.FlightPassengerDTO;
 import fun.hykgraph.entity.Dish;
 import fun.hykgraph.entity.FlightInfo;
 import fun.hykgraph.entity.User;
+import fun.hykgraph.entity.UserPreference;
 import fun.hykgraph.mapper.DishMapper;
 import fun.hykgraph.mapper.FlightInfoMapper;
 import fun.hykgraph.mapper.FlightRouteDishMapper;
@@ -182,7 +183,16 @@ public class FlightController {
         if (userId == null) {
             return 0;
         }
-        return userPreferenceMapper.getByUserId(userId) == null ? 0 : 1;
+        UserPreference preference = userPreferenceMapper.getByUserId(userId);
+        if (preference == null) {
+            return 0;
+        }
+        String raw = preference.getFlavorPreferences();
+        if (raw == null || raw.trim().isEmpty()) {
+            return 0;
+        }
+        String compact = raw.replace("[", "").replace("]", "").replace("\"", "").trim();
+        return compact.isEmpty() ? 0 : 1;
     }
 
     @DeleteMapping("/passenger/{id}")

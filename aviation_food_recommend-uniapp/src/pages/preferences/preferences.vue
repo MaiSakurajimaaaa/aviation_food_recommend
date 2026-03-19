@@ -38,6 +38,7 @@
       <input v-model="dietaryNotes" placeholder="如：少油、不要香菜、偏热食" maxlength="60" />
       <view class="tip note">说明将用于推荐解释与后厨备餐备注。</view>
       <button type="button" class="submit" :disabled="submitting" @click="save">{{ submitting ? '保存中...' : '保存偏好并进入推荐' }}</button>
+      <button type="button" class="skip" v-if="isFirstEntry" :disabled="submitting" @click="skipForNow">先跳过口味，直接体验推荐</button>
     </view>
   </view>
 </template>
@@ -102,10 +103,6 @@ const save = async () => {
   if (submitting.value) {
     return
   }
-  if (!likedFlavors.value.length) {
-    uni.showToast({ title: '请至少选择一个喜欢口味', icon: 'none' })
-    return
-  }
   const payload: UserPreference = {
     mealTypePreferences: JSON.stringify([mealType.value]),
     flavorPreferences: JSON.stringify(likedFlavors.value),
@@ -114,13 +111,22 @@ const save = async () => {
   submitting.value = true
   try {
     await savePreferenceAPI(payload)
-    uni.showToast({ title: '偏好已保存', icon: 'none' })
+    const message = likedFlavors.value.length ? '偏好已保存' : '已跳过口味，已启用冷启动推荐'
+    uni.showToast({ title: message, icon: 'none' })
     setTimeout(() => {
       uni.redirectTo({ url: '/pages/recommendation/recommendation' })
     }, 300)
   } finally {
     submitting.value = false
   }
+}
+
+const skipForNow = async () => {
+  if (submitting.value) {
+    return
+  }
+  likedFlavors.value = []
+  await save()
 }
 
 onLoad((options) => {
@@ -151,4 +157,5 @@ onShow(() => {
 .picker { border: 1px solid #dbe8f5; border-radius: 12rpx; padding: 16rpx; color: #333; }
 input { border: 1px solid #dbe8f5; border-radius: 12rpx; padding: 16rpx; margin-top: 10rpx; }
 .submit { margin-top: 24rpx; background: #00aaff; color: #fff; border-radius: 12rpx; }
+.skip { margin-top: 14rpx; background: #eef8ff; color: #1188cc; border-radius: 12rpx; border: 1px solid #99dfff; }
 </style>

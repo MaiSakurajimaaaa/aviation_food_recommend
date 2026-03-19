@@ -5,6 +5,7 @@ import fun.hykgraph.entity.FlightInfo;
 import fun.hykgraph.vo.FlightPassengerVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -23,10 +24,10 @@ public interface UserMapper {
     User getById(Integer id);
 
     @Update("update user set current_flight_id = #{flightId} where id = #{userId}")
-    void bindFlight(Integer userId, Integer flightId);
+    void bindFlight(@Param("userId") Integer userId, @Param("flightId") Integer flightId);
 
-    @Update("update user set preference_completed = 1 where id = #{userId}")
-    void completePreference(Integer userId);
+    @Update("update user set preference_completed = #{completed} where id = #{userId}")
+    void updatePreferenceCompleted(@Param("userId") Integer userId, @Param("completed") Integer completed);
 
     void update(User user);
 

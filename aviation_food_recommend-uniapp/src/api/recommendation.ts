@@ -1,7 +1,7 @@
 import { http } from '@/utils/http'
 import type { MealSelectResult, PendingRatingInfo, RecommendationDish, RecommendationTopItem } from '@/types/aviation'
 
-export const getRecommendationListAPI = (params?: { mealType?: number; flavor?: string; size?: number }) => {
+export const getRecommendationListAPI = (params?: { mealType?: number; flavor?: string; mealOrder?: number; size?: number }) => {
   const query = Object.fromEntries(
     Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== null),
   )
@@ -41,11 +41,11 @@ export const getRecommendationTopAPI = (size = 5) => {
   })
 }
 
-export const selectRecommendationMealAPI = (dishId: number) => {
+export const selectRecommendationMealAPI = (dishId: number, mealOrder?: number) => {
   return http<MealSelectResult>({
     method: 'POST',
     url: '/user/recommendation/select',
-    data: { dishId },
+    data: { dishId, mealOrder },
   })
 }
 

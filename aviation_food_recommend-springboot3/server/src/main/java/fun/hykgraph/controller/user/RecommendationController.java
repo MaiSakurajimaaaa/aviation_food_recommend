@@ -37,6 +37,8 @@ public class RecommendationController {
     private static final String RATING_STATUS_PENDING = "PENDING";
     private static final long RATING_EXPIRE_DAYS = 7;
     private static final long RATING_DEFER_HOURS = 24;
+    private static final int DEFAULT_MEAL_ORDER = 1;
+    private static final List<String> BREAKFAST_KEYWORDS = Arrays.asList("粥", "包", "馒头", "豆浆", "油条", "面", "面包", "三明治", "吐司", "蛋");
 
     @Autowired
     private UserMapper userMapper;
@@ -112,17 +114,24 @@ public class RecommendationController {
         } else {
             userPreferenceMapper.update(preference);
         }
-        userMapper.completePreference(userId);
+        int completed = parseFlavorList(preference.getFlavorPreferences()).isEmpty() ? 0 : 1;
+        userMapper.updatePreferenceCompleted(userId, completed);
         return Result.success();
     }
 
     @GetMapping("/recommendation/list")
     public Result<List<RecommendationDishVO>> list(@RequestParam(required = false) String mealType,
                                                    @RequestParam(required = false) String flavor,
+                                                   @RequestParam(required = false) Integer mealOrder,
                                                    @RequestParam(defaultValue = "10") Integer size) {
         Integer userId = BaseContext.getCurrentId();
         User user = userMapper.getById(userId);
         Integer flightId = user != null ? user.getCurrentFlightId() : null;
+        if (flightId == null) {
+            return Result.error("请先绑定航班");
+        }
+        FlightInfo flightInfo = flightId == null ? null : flightInfoMapper.getById(flightId);
+        int safeMealOrder = resolveMealOrder(mealOrder, flightInfo == null ? null : flightInfo.getMealCount());
         Integer mealTypeParam = parseMealType(mealType);
         String flavorParam = normalizeParam(flavor);
         if (mealTypeParam != null && !ALLOWED_MEAL_TYPES.contains(mealTypeParam)) {
@@ -151,7 +160,8 @@ public class RecommendationController {
         InteractionContext context = buildInteractionContext(recentLogs, candidateMap, dishNameIdMap);
         int idx = 0;
         for (RecommendationDishVO item : list) {
-            double pmfupScore = calculatePmfupScore(item, prefMealType, prefFlavors, flightId, context, userId);
+            double pmfupScore = calculatePmfupScore(item, prefMealType, prefFlavors, flightId, context, userId,
+                    flightInfo == null ? null : flightInfo.getDepartureTime(), safeMealOrder);
             double prmidmScore = calculatePrmidmScore(userId, item.getDishId(), context);
             double ammbcScore = calculateAmmbcScore(userId, item.getDishId(), context);
 
@@ -260,19 +270,21 @@ public class RecommendationController {
         if (flightInfo.getSelectionDeadline() != null && LocalDateTime.now().isAfter(flightInfo.getSelectionDeadline())) {
             return Result.error("该航班预选已截止，系统将自动分配餐食");
         }
-        Integer existed = recommendationMapper.existsMealSelection(userId, flightInfo.getId());
+        int safeMealOrder = resolveMealOrder(params.get("mealOrder"), flightInfo.getMealCount());
+        Integer existed = recommendationMapper.existsMealSelection(userId, flightInfo.getId(), safeMealOrder);
         LocalDateTime now = LocalDateTime.now();
         boolean modified = existed != null && existed > 0;
 
         Integer previousDishId = null;
         if (modified) {
-            Map<String, Object> latest = recommendationMapper.latestManualSelection(userId, flightInfo.getId());
+            Map<String, Object> latest = recommendationMapper.latestManualSelection(userId, flightInfo.getId(), safeMealOrder);
             previousDishId = extractDishIdFromLatestSelection(latest);
             if (previousDishId != null && Objects.equals(previousDishId, dishId)) {
-                recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), MANUAL_SELECTION_CONFIRMED_STATUS, now);
+                recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), safeMealOrder, MANUAL_SELECTION_CONFIRMED_STATUS, now);
                 Map<String, Object> response = new HashMap<>();
                 response.put("flightId", flightInfo.getId());
                 response.put("dishId", dishId);
+                response.put("mealOrder", safeMealOrder);
                 response.put("selectedAt", now);
                 response.put("modified", true);
                 response.put("selectionDeadline", flightInfo.getSelectionDeadline());
@@ -290,24 +302,26 @@ public class RecommendationController {
             if (previousDishId != null) {
                 dishMapper.increaseStockAndEnable(previousDishId, 1);
             }
-            recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), MANUAL_SELECTION_CONFIRMED_STATUS, now);
-            insertManualSelectionLog(userId, flightInfo.getId(), dishId, "MANUAL_SELECTED_UPDATE");
+            recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), safeMealOrder, MANUAL_SELECTION_CONFIRMED_STATUS, now);
+            insertManualSelectionLog(userId, flightInfo.getId(), dishId, safeMealOrder, "MANUAL_SELECTED_UPDATE");
         } else {
             Map<String, Object> selection = new HashMap<>();
             selection.put("number", "SEL" + System.currentTimeMillis() + userId);
             selection.put("status", MANUAL_SELECTION_CONFIRMED_STATUS);
             selection.put("userId", userId);
             selection.put("flightId", flightInfo.getId());
+            selection.put("mealOrder", safeMealOrder);
             selection.put("seatNumber", "USER");
             selection.put("createTime", now);
             selection.put("updateTime", now);
             recommendationMapper.insertMealSelection(selection);
-            insertManualSelectionLog(userId, flightInfo.getId(), dishId, "MANUAL_SELECTED");
+            insertManualSelectionLog(userId, flightInfo.getId(), dishId, safeMealOrder, "MANUAL_SELECTED");
         }
 
         Map<String, Object> response = new HashMap<>();
         response.put("flightId", flightInfo.getId());
         response.put("dishId", dishId);
+        response.put("mealOrder", safeMealOrder);
         response.put("selectedAt", now);
         response.put("modified", modified);
         response.put("selectionDeadline", flightInfo.getSelectionDeadline());
@@ -344,7 +358,7 @@ public class RecommendationController {
         }
 
         recommendationMapper.syncSubmittedLogRating(userId, flightId, rating);
-        recommendationMapper.updateLatestManualRating(userId, flightId, rating);
+        recommendationMapper.updateLatestManualRating(userId, flightId, DEFAULT_MEAL_ORDER, rating);
 
         return Result.success();
     }
@@ -403,13 +417,14 @@ public class RecommendationController {
                                        Set<String> prefFlavors,
                                        Integer flightId,
                                        InteractionContext context,
-                                       Integer userId) {
+                                       Integer userId,
+                                       LocalDateTime departureTime,
+                                       Integer mealOrder) {
         if (item == null || item.getDishId() == null) {
             return 0.0;
         }
 
-        double geoScore = (flightId != null && item.getRouteDeparture() != null && item.getRouteDestination() != null) ? 1.0 : 0.6;
-        double timeScore = isTimeMealTypeMatched(item.getMealType()) ? 1.0 : 0.55;
+        double timeScore = calculateTimePreferenceScore(item, departureTime, mealOrder);
         double prefScore = 0.2;
         if (prefMealType != null && item.getMealType() != null && prefMealType.equals(item.getMealType())) {
             prefScore += 0.45;
@@ -427,7 +442,7 @@ public class RecommendationController {
         }
         double assocScore = calculateAssociationScore(userId, item.getDishId(), context);
 
-        return clamp01(0.28 * prefScore + 0.24 * geoScore + 0.18 * timeScore + 0.30 * assocScore);
+        return clamp01(0.44 * prefScore + 0.26 * timeScore + 0.30 * assocScore);
     }
 
     private double calculatePrmidmScore(Integer userId, Integer dishId, InteractionContext context) {
@@ -551,21 +566,79 @@ public class RecommendationController {
         return ctx;
     }
 
-    private boolean isTimeMealTypeMatched(Integer mealType) {
-        if (mealType == null) {
+    private double calculateTimePreferenceScore(Integer mealType) {
+        return calculateTimePreferenceScore(mealType, LocalTime.now());
+    }
+
+    private double calculateTimePreferenceScore(RecommendationDishVO item, LocalDateTime departureTime, Integer mealOrder) {
+        LocalTime referenceTime = resolveMealReferenceTime(departureTime, mealOrder);
+        double mealTypeScore = calculateTimePreferenceScore(item == null ? null : item.getMealType(), referenceTime);
+        if (item == null) {
+            return mealTypeScore;
+        }
+
+        if (mealOrder != null && mealOrder == 1 && referenceTime.isBefore(LocalTime.of(10, 30))) {
+            boolean breakfastSeries = isBreakfastSeriesDish(item.getDishName());
+            if (breakfastSeries) {
+                return clamp01(Math.max(mealTypeScore, 0.96));
+            }
+            return clamp01(mealTypeScore * 0.84);
+        }
+        return mealTypeScore;
+    }
+
+    private LocalTime resolveMealReferenceTime(LocalDateTime departureTime, Integer mealOrder) {
+        LocalTime base = departureTime == null ? LocalTime.now() : departureTime.toLocalTime();
+        int order = mealOrder == null || mealOrder < 1 ? 1 : mealOrder;
+        return base.plusHours((long) (order - 1) * 4);
+    }
+
+    private boolean isBreakfastSeriesDish(String dishName) {
+        if (dishName == null || dishName.trim().isEmpty()) {
             return false;
         }
-        LocalTime now = LocalTime.now();
-        if (now.isBefore(LocalTime.of(10, 30))) {
-            return mealType == 1;
+        String name = dishName.trim();
+        for (String keyword : BREAKFAST_KEYWORDS) {
+            if (name.contains(keyword)) {
+                return true;
+            }
         }
-        if (now.isBefore(LocalTime.of(15, 0))) {
-            return mealType == 2;
+        return false;
+    }
+
+    private double calculateTimePreferenceScore(Integer mealType, LocalTime currentTime) {
+        if (mealType == null || currentTime == null) {
+            return 0.55;
         }
-        if (now.isBefore(LocalTime.of(21, 0))) {
-            return mealType == 3;
+
+        LocalTime breakfastEnd = LocalTime.of(10, 30);
+        LocalTime lunchEnd = LocalTime.of(15, 0);
+        LocalTime dinnerEnd = LocalTime.of(21, 0);
+
+        // Explicitly bias early time windows toward breakfast dishes.
+        if (mealType == 1) {
+            if (currentTime.isBefore(breakfastEnd)) {
+                return 1.0;
+            }
+            if (currentTime.isBefore(lunchEnd)) {
+                return 0.82;
+            }
+            if (currentTime.isBefore(dinnerEnd)) {
+                return 0.64;
+            }
+            return 0.48;
         }
-        return mealType == 4;
+
+        if (currentTime.isBefore(breakfastEnd)) {
+            return 0.52;
+        }
+        if (currentTime.isBefore(lunchEnd)) {
+            return mealType == 2 ? 0.95 : 0.68;
+        }
+        if (currentTime.isBefore(dinnerEnd)) {
+            return mealType == 3 ? 0.93 : 0.70;
+        }
+        return mealType == 4 ? 0.90 : 0.66;
     }
 
     private double timeDecay(LocalDateTime time) {
@@ -755,13 +828,13 @@ public class RecommendationController {
         return result;
     }
 
-    private void insertManualSelectionLog(Integer userId, Integer flightId, Integer dishId, String event) {
+    private void insertManualSelectionLog(Integer userId, Integer flightId, Integer dishId, Integer mealOrder, String event) {
         Map<String, Object> recommendLog = new HashMap<>();
         recommendLog.put("userId", userId);
         recommendLog.put("flightId", flightId);
         recommendLog.put("recommendedDishes", "[" + dishId + "]");
         recommendLog.put("algorithmType", resolveAlgorithmType(userId));
-        recommendLog.put("userFeedback", event + ":" + dishId);
+        recommendLog.put("userFeedback", event + ":dishId=" + dishId + ":mealOrder=" + mealOrder);
         recommendationMapper.insertLog(recommendLog);
     }
 
@@ -781,12 +854,23 @@ public class RecommendationController {
             return null;
         }
         String text = String.valueOf(value);
-        String digits = text.replaceAll("[^0-9]", "");
-        if (digits.isEmpty()) {
+        java.util.regex.Matcher dishIdMatcher = java.util.regex.Pattern.compile("dishId=(\\d+)").matcher(text);
+        String number = null;
+        if (dishIdMatcher.find()) {
+            number = dishIdMatcher.group(1);
+        } else {
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("(?<!\\d)(\\d{1,6})(?!\\d)")
+                    .matcher(text);
+            if (matcher.find()) {
+                number = matcher.group(1);
+            }
+        }
+        if (number == null || number.isEmpty()) {
             return null;
         }
         try {
-            return Integer.parseInt(digits);
+            return Integer.parseInt(number);
         } catch (Exception ex) {
             return null;
         }
@@ -794,37 +878,43 @@ public class RecommendationController {
 
     private List<PendingRatingInfoVO> resolvePendingRatings(Integer userId, LocalDateTime now) {
         List<PendingRatingInfoVO> pendingList = recommendationMapper.findVisiblePendingRatings(userId, now);
-        if (pendingList != null && !pendingList.isEmpty()) {
-            return pendingList;
-        }
-
         List<Map<String, Object>> seeds = recommendationMapper.findEndedManualSelectionsWithoutRating(userId, now);
-        if (seeds == null || seeds.isEmpty()) {
-            return new ArrayList<>();
+        if (seeds != null && !seeds.isEmpty()) {
+            for (Map<String, Object> seed : seeds) {
+                Integer flightId = parseInt(seed.get("flightId"));
+                Long sourceLogId = parseLong(seed.get("sourceLogId"));
+                if (flightId == null) {
+                    continue;
+                }
+
+                Map<String, Object> params = new HashMap<>();
+                params.put("userId", userId);
+                params.put("flightId", flightId);
+                params.put("sourceLogId", sourceLogId);
+                params.put("ratingStatus", RATING_STATUS_PENDING);
+                params.put("firstVisibleAt", now);
+                params.put("lastVisibleAt", now);
+                params.put("nextRemindAt", now);
+                params.put("deferCount", 0);
+                params.put("expireAt", now.plusDays(RATING_EXPIRE_DAYS));
+                params.put("channel", "miniapp");
+                params.put("createTime", now);
+                params.put("updateTime", now);
+                recommendationMapper.upsertFlightRatingTask(params);
+            }
         }
 
-        for (Map<String, Object> seed : seeds) {
-            Integer flightId = parseInt(seed.get("flightId"));
-            Long sourceLogId = parseLong(seed.get("sourceLogId"));
-            if (flightId == null) {
-                continue;
-            }
-
-            Map<String, Object> params = new HashMap<>();
-            params.put("userId", userId);
-            params.put("flightId", flightId);
-            params.put("sourceLogId", sourceLogId);
-            params.put("ratingStatus", RATING_STATUS_PENDING);
-            params.put("firstVisibleAt", now);
-            params.put("lastVisibleAt", now);
-            params.put("nextRemindAt", now);
-            params.put("deferCount", 0);
-            params.put("expireAt", now.plusDays(RATING_EXPIRE_DAYS));
-            params.put("channel", "miniapp");
-            params.put("createTime", now);
-            params.put("updateTime", now);
-            recommendationMapper.upsertFlightRatingTask(params);
+        if (seeds == null || seeds.isEmpty()) {
+            return pendingList == null ? new ArrayList<>() : pendingList;
         }
         return recommendationMapper.findVisiblePendingRatings(userId, now);
+    }
+
+    private int resolveMealOrder(Integer mealOrder, Integer mealCount) {
+        int maxMealCount = (mealCount == null || mealCount <= 0) ? 1 : Math.min(mealCount, 3);
+        if (mealOrder == null || mealOrder <= 0) {
+            return 1;
+        }
+        return Math.min(mealOrder, maxMealCount);
     }
 }

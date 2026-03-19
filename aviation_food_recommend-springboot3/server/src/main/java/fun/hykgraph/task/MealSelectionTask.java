@@ -56,7 +56,7 @@ public class MealSelectionTask {
                 if (userId == null) {
                     continue;
                 }
-                Integer existCount = recommendationMapper.existsMealSelection(userId, flight.getId());
+                Integer existCount = recommendationMapper.existsMealSelection(userId, flight.getId(), 1);
                 if (existCount != null && existCount > 0) {
                     continue;
                 }
@@ -131,6 +131,7 @@ public class MealSelectionTask {
         selection.put("status", 5);
         selection.put("userId", userId);
         selection.put("flightId", flight.getId());
+        selection.put("mealOrder", 1);
         selection.put("seatNumber", "AUTO");
         selection.put("createTime", LocalDateTime.now());
         selection.put("updateTime", LocalDateTime.now());

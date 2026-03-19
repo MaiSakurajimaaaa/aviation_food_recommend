@@ -12,6 +12,12 @@
     </view>
 
     <view class="card" v-if="meal">
+      <view class="label">预选餐次</view>
+      <view class="value">{{ meal?.mealOrderLabel || `第${meal?.mealOrder || 1}餐` }}</view>
+      <view class="meta">不同餐次可分别预选，系统会按餐次记录。</view>
+    </view>
+
+    <view class="card" v-if="meal">
       <view class="label">餐食名称</view>
       <view class="value strong">{{ meal?.dishName || '-' }}</view>
       <view class="score-track">
@@ -88,7 +94,7 @@ const confirmSelect = async () => {
   if (submitting.value) return
   submitting.value = true
   try {
-    const result = await selectRecommendationMealAPI(meal.value.dishId)
+    const result = await selectRecommendationMealAPI(meal.value.dishId, meal.value.mealOrder)
     const message = result.data?.modified ? '改选成功（已更新）' : '预选成功'
     uni.showToast({ title: message, icon: 'none' })
 

@@ -55,19 +55,26 @@ public interface RecommendationMapper {
 
     Integer updateMealSelectionUpdateTime(@Param("userId") Integer userId,
                                           @Param("flightId") Integer flightId,
+                                          @Param("mealOrder") Integer mealOrder,
                                           @Param("updateTime") LocalDateTime updateTime);
 
     Integer updateMealSelectionStatusAndUpdateTime(@Param("userId") Integer userId,
                                                    @Param("flightId") Integer flightId,
+                                                   @Param("mealOrder") Integer mealOrder,
                                                    @Param("status") Integer status,
                                                    @Param("updateTime") LocalDateTime updateTime);
 
-    Integer existsMealSelection(@Param("userId") Integer userId, @Param("flightId") Integer flightId);
+    Integer existsMealSelection(@Param("userId") Integer userId,
+                                @Param("flightId") Integer flightId,
+                                @Param("mealOrder") Integer mealOrder);
 
-    Map<String, Object> latestManualSelection(@Param("userId") Integer userId, @Param("flightId") Integer flightId);
+    Map<String, Object> latestManualSelection(@Param("userId") Integer userId,
+                                              @Param("flightId") Integer flightId,
+                                              @Param("mealOrder") Integer mealOrder);
 
     Integer updateLatestManualRating(@Param("userId") Integer userId,
                                      @Param("flightId") Integer flightId,
+                                     @Param("mealOrder") Integer mealOrder,
                                      @Param("rating") Integer rating);
 
     List<Map<String, Object>> listExpiredFlights(@Param("now") LocalDateTime now);

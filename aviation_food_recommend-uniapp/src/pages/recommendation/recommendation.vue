@@ -48,10 +48,11 @@
         <view class="title">预选状态</view>
         <view class="chip" :class="selectionPhase === 'selected' ? 'state-ok' : 'state-warn'">{{ selectionPhaseText }}</view>
       </view>
+      <view class="state-main">当前餐次：{{ selectedMealOrderLabel }}</view>
       <view class="state-main">{{ selectionMainText }}</view>
       <view class="state-sub">{{ selectionSubText }}</view>
       <view class="state-tags">
-        <view class="state-tag">{{ currentFlight.flightNumber }}：{{ hasManualSelectionForCurrentFlight ? '已选' : '未选' }}</view>
+        <view class="state-tag">{{ currentFlight.flightNumber }} {{ selectedMealOrderLabel }}：{{ hasManualSelectionForCurrentFlight ? '已选' : '未选' }}</view>
         <view class="state-tag">截止：{{ formatDeadline(currentFlight.selectionDeadline) }}</view>
       </view>
       <view class="selected-dish" v-if="selectionPhase === 'selected'">
@@ -74,6 +75,10 @@
       <picker mode="selector" :range="mealTypeOptions" range-key="label" @change="onMealTypeChange">
         <view class="picker">{{ selectedMealTypeLabel }}</view>
       </picker>
+      <view class="label" v-if="mealOrderOptions.length > 1">预选餐次</view>
+      <picker v-if="mealOrderOptions.length > 1" mode="selector" :range="mealOrderOptions" range-key="label" :value="selectedMealOrderIndex" @change="onMealOrderChange">
+        <view class="picker">{{ selectedMealOrderLabel }}</view>
+      </picker>
       <view class="action-row">
         <button class="btn ghost" @click="resetFilter">重置</button>
         <button class="btn" :disabled="loading" @click="loadData">{{ loading ? '同步中...' : '刷新推荐' }}</button>
@@ -87,7 +92,6 @@
 
     <view v-if="list.length" class="dish-window">
       <swiper
-        :key="swiperKey"
         class="dish-swiper"
         :current="swiperCurrent"
         :circular="list.length > 1"
@@ -175,6 +179,7 @@ const mealTypeOptions = [
 
 const selectedFlavor = ref('')
 const selectedMealType = ref('')
+const selectedMealOrder = ref(1)
 const list = ref<RecommendationDish[]>([])
 const ranking = ref<RecommendationTopItem[]>([])
 const recommendationHistory = ref<Record<string, unknown>[]>([])
@@ -184,7 +189,6 @@ const candidateFlights = ref<FlightInfo[]>([])
 const currentFlight = ref<FlightInfo | null>(null)
 const selectedFlightIndex = ref(0)
 const swiperCurrent = ref(0)
-const swiperKey = ref(0)
 const loading = ref(false)
 const {loadFlightContext: loadFlightContextData} = useFlightContext()
 const fallbackDishImages = ['/static/images/swp1.png', '/static/images/swp2.png', '/static/images/swp3.png']
@@ -206,10 +210,34 @@ const onMealTypeChange = (event: any) => {
   selectedMealTypeLabel.value = option.label
 }
 
+const mealOrderOptions = computed(() => {
+  const count = Math.max(1, Math.min(Number(currentFlight.value?.mealCount || 1), 3))
+  return Array.from({ length: count }, (_, idx) => ({ value: idx + 1, label: `第${idx + 1}餐` }))
+})
+
+const selectedMealOrderIndex = computed(() => {
+  const idx = mealOrderOptions.value.findIndex((item) => item.value === selectedMealOrder.value)
+  return idx >= 0 ? idx : 0
+})
+
+const selectedMealOrderLabel = computed(() => {
+  const matched = mealOrderOptions.value.find((item) => item.value === selectedMealOrder.value)
+  return matched?.label || '第1餐'
+})
+
+const onMealOrderChange = (event: any) => {
+  const index = Number(event.detail.value)
+  const option = mealOrderOptions.value[index]
+  if (!option) return
+  selectedMealOrder.value = option.value
+  void loadRecommendationData()
+}
+
 const resetFilter = () => {
   selectedFlavor.value = ''
   selectedMealType.value = ''
   selectedMealTypeLabel.value = '全部餐型'
+  selectedMealOrder.value = 1
   void loadData()
 }
 
@@ -250,7 +278,10 @@ const hasManualSelectionForCurrentFlight = computed(() => {
     const rowFlightId = Number(rowFlightIdRaw)
     if (Number.isNaN(rowFlightId) || rowFlightId !== flightId) return false
     const feedback = String(row.userFeedback ?? row.user_feedback ?? '')
-    return feedback.startsWith('MANUAL_SELECTED')
+    if (!feedback.startsWith('MANUAL_SELECTED')) return false
+    const orderMatch = feedback.match(/mealOrder=(\d+)/)
+    const order = orderMatch?.[1] ? Number(orderMatch[1]) : 1
+    return order === selectedMealOrder.value
   })
 })
 
@@ -264,7 +295,10 @@ const latestManualSelection = computed(() => {
     const rowFlightId = Number(rowFlightIdRaw)
     if (Number.isNaN(rowFlightId) || rowFlightId !== flightId) return false
     const feedback = String(row.userFeedback ?? row.user_feedback ?? '')
-    return feedback.startsWith('MANUAL_SELECTED')
+    if (!feedback.startsWith('MANUAL_SELECTED')) return false
+    const orderMatch = feedback.match(/mealOrder=(\d+)/)
+    const order = orderMatch?.[1] ? Number(orderMatch[1]) : 1
+    return order === selectedMealOrder.value
   }) as Array<Record<string, unknown>>
 
   if (!rows.length) return null
@@ -358,6 +392,10 @@ const loadFlightContext = async () => {
     const idx = candidateFlights.value.findIndex((item) => item.id === currentFlightId)
     selectedFlightIndex.value = idx >= 0 ? idx : 0
   }
+  const mealCount = Math.max(1, Math.min(Number(currentFlight.value?.mealCount || 1), 3))
+  if (selectedMealOrder.value > mealCount) {
+    selectedMealOrder.value = 1
+  }
   return !!currentFlight.value
 }
 
@@ -367,6 +405,7 @@ const loadRecommendationData = async () => {
     getRecommendationListAPI({
       flavor: selectedFlavor.value || undefined,
       mealType: selectedMealType.value ? Number(selectedMealType.value) : undefined,
+      mealOrder: selectedMealOrder.value,
       size: 10,
     }),
     getRecommendationTopAPI(5),
@@ -378,8 +417,8 @@ const loadRecommendationData = async () => {
   recommendationHistory.value = historyRes.data || []
   pendingRatingList.value = pendingRes.data || []
 
-  // Swiper data is refreshed frequently (onShow, filter changes). Rebuild and relocate
-  // current index to prevent circular swiper state from getting stuck on one direction.
+  // Keep current slide aligned with refreshed data while preserving swiper instance,
+  // which avoids intermittent gesture interruption on mini-app clients.
   let nextIndex = 0
   if (currentDishId != null) {
     const matchedIndex = list.value.findIndex((item) => item.dishId === currentDishId)
@@ -391,7 +430,6 @@ const loadRecommendationData = async () => {
     nextIndex = Math.max(0, list.value.length - 1)
   }
   swiperCurrent.value = nextIndex
-  swiperKey.value += 1
 }
 
 const loadData = async () => {
@@ -430,6 +468,8 @@ const goSelect = (item: RecommendationDish) => {
   }
   const payloadData: RecommendConfirmPayload = {
     dishId: item.dishId,
+    mealOrder: selectedMealOrder.value,
+    mealOrderLabel: selectedMealOrderLabel.value,
     dishName: item.dishName,
     detail: item.detail,
     mealType: item.mealType,
