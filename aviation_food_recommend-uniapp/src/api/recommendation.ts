@@ -49,6 +49,14 @@ export const selectRecommendationMealAPI = (dishId: number, mealOrder?: number) 
   })
 }
 
+export const reportRecommendationClickAPI = (dishId: number, mealOrder?: number) => {
+  return http<void>({
+    method: 'POST',
+    url: '/user/recommendation/click',
+    data: { dishId, mealOrder },
+  })
+}
+
 export const rateRecommendationAPI = (rating: number, flightId?: number) => {
   return http<void>({
     method: 'POST',

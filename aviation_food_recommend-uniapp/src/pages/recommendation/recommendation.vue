@@ -162,6 +162,7 @@ import {
   getPendingRatingAPI,
   getRecommendationHistoryAPI,
   getRecommendationListAPI,
+  reportRecommendationClickAPI,
   getRecommendationTopAPI,
 } from '@/api/recommendation'
 import { bindFlightAPI } from '@/api/flight'
@@ -466,6 +467,9 @@ const goSelect = (item: RecommendationDish) => {
     uni.showToast({title: '餐食数据异常', icon: 'none'})
     return
   }
+  void reportRecommendationClickAPI(item.dishId, selectedMealOrder.value).catch(() => {
+    // Click logging failure should not block user selection flow.
+  })
   const payloadData: RecommendConfirmPayload = {
     dishId: item.dishId,
     mealOrder: selectedMealOrder.value,

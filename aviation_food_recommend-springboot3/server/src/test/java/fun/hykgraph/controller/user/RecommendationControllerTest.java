@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -180,4 +181,63 @@ class RecommendationControllerTest {
 
                 assertTrue(breakfastScore > nonBreakfastScore);
             }
+
+            @Test
+            void calculateAmmbcScore_shouldNotUseAssociationOnlySignal() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+                Constructor<?> ctor = contextClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object context = ctor.newInstance();
+
+                @SuppressWarnings("unchecked")
+                Map<Integer, Map<Integer, Double>> userDishScore =
+                        (Map<Integer, Map<Integer, Double>>) ReflectionTestUtils.getField(context, "userDishScore");
+                @SuppressWarnings("unchecked")
+                Map<String, Double> pairAssociation =
+                        (Map<String, Double>) ReflectionTestUtils.getField(context, "pairAssociation");
+
+                Map<Integer, Double> selfVector = new HashMap<>();
+                selfVector.put(9, 6.0);
+                userDishScore.put(7, selfVector);
+                pairAssociation.put("9:11", 1.0);
+
+                Method method = RecommendationController.class.getDeclaredMethod(
+                        "calculateAmmbcScore",
+                        Integer.class,
+                        Integer.class,
+                        contextClass
+                );
+                method.setAccessible(true);
+
+                Double score = (Double) method.invoke(controller, 7, 11, context);
+
+                assertEquals(0.0, score);
+            }
+
+                        @Test
+                        void insertClickLog_shouldWriteClickFeedbackWithDishAndMealOrder() throws Exception {
+                                RecommendationController controller = new RecommendationController();
+                                ReflectionTestUtils.setField(controller, "recommendationMapper", recommendationMapper);
+
+                                Method method = RecommendationController.class.getDeclaredMethod(
+                                                "insertClickLog",
+                                                Integer.class,
+                                                Integer.class,
+                                                Integer.class,
+                                                Integer.class
+                                );
+                                method.setAccessible(true);
+
+                                method.invoke(controller, 7, 100, 11, 2);
+
+                                verify(recommendationMapper, times(1)).insertLog(argThat(params -> {
+                                        Object feedback = params.get("userFeedback");
+                                        Object dishes = params.get("recommendedDishes");
+                                        return feedback != null
+                                                        && String.valueOf(feedback).startsWith("CLICK:dishId=11:mealOrder=2")
+                                                        && "[11]".equals(String.valueOf(dishes));
+                                }));
+                        }
 }

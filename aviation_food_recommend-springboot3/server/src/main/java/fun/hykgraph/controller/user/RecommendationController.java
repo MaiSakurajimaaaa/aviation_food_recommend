@@ -165,12 +165,12 @@ public class RecommendationController {
             double prmidmScore = calculatePrmidmScore(userId, item.getDishId(), context);
             double ammbcScore = calculateAmmbcScore(userId, item.getDishId(), context);
 
-            double fusedScore = 0.45 * pmfupScore + 0.30 * prmidmScore + 0.25 * ammbcScore;
+            double fusedScore = 0.48 * pmfupScore + 0.34 * prmidmScore + 0.18 * ammbcScore;
 
             List<String> reasons = new ArrayList<>();
             if (pmfupScore >= 0.65) reasons.add("多源偏好融合");
             if (prmidmScore >= 0.55) reasons.add("兴趣漂移感知");
-            if (ammbcScore >= 0.50) reasons.add("双向主动匹配");
+            if (ammbcScore >= 0.40) reasons.add("双向主动匹配");
             if (reasons.isEmpty()) reasons.add("基础稳健推荐");
 
             item.setFallbackLevel(idx++);
@@ -249,6 +249,24 @@ public class RecommendationController {
     @GetMapping("/recommendation/top")
     public Result<List<Map<String, Object>>> top(@RequestParam(defaultValue = "5") Integer size) {
         return Result.success(recommendationMapper.topDishes(Math.min(size, 10), null, null));
+    }
+
+    @PostMapping("/recommendation/click")
+    public Result clickRecommendation(@RequestBody Map<String, Integer> params) {
+        Integer dishId = params.get("dishId");
+        if (dishId == null) {
+            return Result.error("dishId不能为空");
+        }
+        Integer userId = BaseContext.getCurrentId();
+        User user = userMapper.getById(userId);
+        Integer flightId = user != null ? user.getCurrentFlightId() : null;
+        if (flightId == null) {
+            return Result.error("请先绑定航班");
+        }
+        FlightInfo flightInfo = flightInfoMapper.getById(flightId);
+        int safeMealOrder = resolveMealOrder(params.get("mealOrder"), flightInfo == null ? null : flightInfo.getMealCount());
+        insertClickLog(userId, flightId, dishId, safeMealOrder);
+        return Result.success();
     }
 
     @PostMapping("/recommendation/select")
@@ -484,10 +502,12 @@ public class RecommendationController {
             simWeighted += sim * otherVector.get(dishId);
             simTotal += sim;
         }
-        double userToDish = simTotal > 0 ? clamp01((simWeighted / simTotal) / 8.0) : 0.0;
-
-        double dishToUser = calculateAssociationScore(userId, dishId, context);
-        return clamp01(0.62 * userToDish + 0.38 * dishToUser);
+        if (simTotal <= 0) {
+            return 0.0;
+        }
+        double collaborative = clamp01((simWeighted / simTotal) / 8.0);
+        double confidence = clamp01(simTotal / 2.5);
+        return clamp01(collaborative * (0.75 + 0.25 * confidence));
     }
 
     private double calculateAssociationScore(Integer userId, Integer targetDishId, InteractionContext context) {
@@ -835,6 +855,16 @@ public class RecommendationController {
         recommendLog.put("recommendedDishes", "[" + dishId + "]");
         recommendLog.put("algorithmType", resolveAlgorithmType(userId));
         recommendLog.put("userFeedback", event + ":dishId=" + dishId + ":mealOrder=" + mealOrder);
+        recommendationMapper.insertLog(recommendLog);
+    }
+
+    private void insertClickLog(Integer userId, Integer flightId, Integer dishId, Integer mealOrder) {
+        Map<String, Object> recommendLog = new HashMap<>();
+        recommendLog.put("userId", userId);
+        recommendLog.put("flightId", flightId);
+        recommendLog.put("recommendedDishes", "[" + dishId + "]");
+        recommendLog.put("algorithmType", resolveAlgorithmType(userId));
+        recommendLog.put("userFeedback", "CLICK:dishId=" + dishId + ":mealOrder=" + mealOrder);
         recommendationMapper.insertLog(recommendLog);
     }
 

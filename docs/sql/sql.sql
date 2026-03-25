@@ -129,24 +129,6 @@ create table flight_info
 create index idx_flight_number
     on flight_info (flight_number);
 
-create table flight_passenger
-(
-    id               bigint            not null
-        primary key,
-    flight_id        bigint            null,
-    passenger_name   varchar(50)       null,
-    id_number        varchar(255)      null,
-    seat_number      varchar(10)       null,
-    user_id          bigint            null,
-    selection_status tinyint default 0 null,
-    create_time      datetime          null,
-    update_time      datetime          null
-)
-    charset = utf8mb4;
-
-create index idx_flight_passenger_flight
-    on flight_passenger (flight_id);
-
 create table flight_route_dish
 (
     id          bigint auto_increment
@@ -205,21 +187,6 @@ create table meal_selection
 create index idx_meal_selection_user
     on meal_selection (user_id);
 
-create table meal_selection_detail
-(
-    id           bigint       not null
-        primary key,
-    selection_id bigint       null,
-    dish_id      bigint       null,
-    setmeal_id   bigint       null,
-    name         varchar(32)  null,
-    image        varchar(500) null,
-    dish_flavor  varchar(200) null,
-    create_time  datetime     null,
-    update_time  datetime     null
-)
-    charset = utf8mb4;
-
 create table recommendation_log
 (
     id                 bigint auto_increment
@@ -236,35 +203,6 @@ create table recommendation_log
 
 create index idx_recommendation_user
     on recommendation_log (user_id);
-
-create table setmeal
-(
-    id          bigint            not null
-        primary key,
-    category_id bigint            null,
-    name        varchar(32)       null,
-    image       varchar(500)      null,
-    description varchar(200)      null,
-    status      tinyint default 1 null,
-    create_time datetime          null,
-    update_time datetime          null,
-    create_user bigint            null,
-    update_user bigint            null
-)
-    charset = utf8mb4;
-
-create table setmeal_dish
-(
-    id          bigint      not null
-        primary key,
-    setmeal_id  bigint      null,
-    dish_id     bigint      null,
-    name        varchar(32) null,
-    copies      int         null,
-    create_time datetime    null,
-    update_time datetime    null
-)
-    charset = utf8mb4;
 
 create table user
 (
