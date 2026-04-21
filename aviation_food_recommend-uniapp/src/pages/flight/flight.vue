@@ -31,6 +31,11 @@
       <view class="title">身份冷启动</view>
       <view class="tip">请输入身份证号，系统将自动匹配可乘坐航班。</view>
       <input v-model="idNumberInput" maxlength="18" placeholder="请输入18位身份证号" class="input" />
+      <view class="tip">请选择舱型</view>
+      <picker mode="selector" :range="cabinTypeOptions" range-key="label" :value="cabinTypeIndex" @change="onCabinTypeChange">
+        <view class="input">{{ cabinTypeLabel }}</view>
+      </picker>
+      <view class="tip">规则：头等舱包含商务舱与经济舱餐食，商务舱包含经济舱餐食。</view>
       <button class="btn" @click="saveIdNumberAndLoad">保存并匹配</button>
     </view>
 
@@ -41,6 +46,13 @@
       </view>
       <view class="row"><text class="label">身份证：</text><text class="value">{{ user.idNumber }}</text></view>
       <view class="row"><text class="label">昵称：</text><text class="value">{{ user.name || '未设置' }}</text></view>
+      <view class="row"><text class="label">舱型：</text><text class="value">{{ cabinTypeLabel }}</text></view>
+      <view class="tip">如舱位变更，可在此重新设置并保存。</view>
+      <picker mode="selector" :range="cabinTypeOptions" range-key="label" :value="cabinTypeIndex" @change="onCabinTypeChange">
+        <view class="input">{{ cabinTypeLabel }}</view>
+      </picker>
+      <view class="tip">规则：头等舱包含商务舱与经济舱餐食，商务舱包含经济舱餐食。</view>
+      <button class="btn" @click="saveCabinType">保存舱型</button>
     </view>
 
     <view class="card current-flight" v-if="currentFlight">
@@ -98,6 +110,37 @@ const candidateFlights = ref<FlightInfo[]>([])
 const recommendationHistory = ref<Record<string, unknown>[]>([])
 const pendingRatingList = ref<PendingRatingInfo[]>([])
 const loading = ref(false)
+const cabinTypeInput = ref(3)
+
+const cabinTypeOptions = [
+  { value: 1, label: '头等舱' },
+  { value: 2, label: '商务舱' },
+  { value: 3, label: '经济舱' },
+]
+
+const cabinTypeIndex = computed(() => {
+  const idx = cabinTypeOptions.findIndex((item) => item.value === cabinTypeInput.value)
+  return idx >= 0 ? idx : 2
+})
+
+const cabinTypeLabel = computed(() => {
+  const current = cabinTypeOptions.find((item) => item.value === cabinTypeInput.value)
+  return current?.label || '经济舱'
+})
+
+const onCabinTypeChange = (event: any) => {
+  const index = Number(event.detail.value)
+  const selected = cabinTypeOptions[index]
+  if (!selected) return
+  cabinTypeInput.value = selected.value
+}
+
+const normalizeCabinType = (value?: number | null) => {
+  if (value === 1 || value === 2 || value === 3) {
+    return value
+  }
+  return 3
+}
 
 const isSelectionClosed = () => {
   const deadline = currentFlight.value?.selectionDeadline
@@ -154,6 +197,7 @@ const loadPageData = async () => {
     const res = await getUserInfoAPI(userStore.profile!.id)
     user.value = res.data || {id: 0, openid: ''}
     idNumberInput.value = user.value.idNumber || ''
+    cabinTypeInput.value = normalizeCabinType(user.value.cabinType)
     if (user.value.idNumber) {
       await Promise.all([loadCurrentFlight(), loadCandidates(), loadSelectionHistory()])
       const pendingRes = await getPendingRatingAPI()
@@ -176,8 +220,26 @@ const saveIdNumberAndLoad = async () => {
     uni.showToast({title: '身份证号格式不正确', icon: 'none'})
     return
   }
-  await updateUserAPI({id: userStore.profile!.id, idNumber: value})
+  await updateUserAPI({
+    id: userStore.profile!.id,
+    idNumber: value,
+    cabinType: normalizeCabinType(cabinTypeInput.value),
+  })
   uni.showToast({title: '初始化成功', icon: 'none'})
+  await loadPageData()
+}
+
+const saveCabinType = async () => {
+  if (!ensureLogin()) return
+  if (!user.value.idNumber) {
+    uni.showToast({title: '请先完成身份证初始化', icon: 'none'})
+    return
+  }
+  await updateUserAPI({
+    id: userStore.profile!.id,
+    cabinType: normalizeCabinType(cabinTypeInput.value),
+  })
+  uni.showToast({title: '舱型已更新', icon: 'none'})
   await loadPageData()
 }
 

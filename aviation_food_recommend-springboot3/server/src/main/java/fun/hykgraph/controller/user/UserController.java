@@ -1,9 +1,11 @@
 package fun.hykgraph.controller.user;
 
 import fun.hykgraph.constant.JwtClaimsConstant;
+import fun.hykgraph.context.BaseContext;
 import fun.hykgraph.dto.UserDTO;
 import fun.hykgraph.dto.UserLoginDTO;
 import fun.hykgraph.entity.User;
+import fun.hykgraph.exception.BaseException;
 import fun.hykgraph.properties.JwtProperties;
 import fun.hykgraph.result.Result;
 import fun.hykgraph.service.UserService;
@@ -54,8 +56,11 @@ public class UserController {
      */
     @GetMapping("/{id}")
     public Result<User> getUser(@PathVariable Integer id){
-        log.info("用户id:{}", id);
-        User user = userService.getUser(id);
+        Integer currentUserId = getCurrentUserId();
+        if (id != null && !currentUserId.equals(id)) {
+            log.warn("用户资料查询id不一致，pathId:{}, currentUserId:{}", id, currentUserId);
+        }
+        User user = userService.getUser(currentUserId);
         return Result.success(user);
     }
 
@@ -65,10 +70,20 @@ public class UserController {
      * @return
      */
     @PutMapping
-    public Result update(@RequestBody UserDTO userDTO){
-        log.info("新的用户信息：{}", userDTO);
+    public Result<Void> update(@RequestBody UserDTO userDTO){
+        Integer currentUserId = getCurrentUserId();
+        userDTO.setId(currentUserId);
+        log.info("更新用户信息，currentUserId:{}", currentUserId);
         userService.update(userDTO);
         return Result.success();
+    }
+
+    private Integer getCurrentUserId() {
+        Integer currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new BaseException("登录信息失效，请重新登录");
+        }
+        return currentUserId;
     }
 
 }

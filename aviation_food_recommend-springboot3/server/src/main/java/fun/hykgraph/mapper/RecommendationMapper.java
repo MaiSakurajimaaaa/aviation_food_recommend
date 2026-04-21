@@ -15,7 +15,8 @@ public interface RecommendationMapper {
     List<RecommendationDishVO> listCandidateDishes(@Param("flightId") Integer flightId,
                                                    @Param("mealType") Integer mealType,
                                                    @Param("flavor") String flavor,
-                                                   @Param("limit") Integer limit);
+                                                   @Param("limit") Integer limit,
+                                                   @Param("cabinTypes") List<Integer> cabinTypes);
 
     void insertLog(Map<String, Object> params);
 

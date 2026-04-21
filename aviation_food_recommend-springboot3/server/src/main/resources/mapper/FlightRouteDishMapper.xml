@@ -13,6 +13,10 @@
                d.name as dish_name,
                d.status as dish_status,
                frd.dish_source,
+                             (case
+                                        when ifnull(frd.cabin_type, 3) = 0 then 3
+                                        else ifnull(frd.cabin_type, 3)
+                                end) as cabin_type,
                frd.sort
         from flight_route_dish frd
                  inner join flight_info fi on fi.departure = frd.departure and fi.destination = frd.destination
@@ -27,6 +31,10 @@
                  inner join flight_info fi on fi.departure = frd.departure and fi.destination = frd.destination
         where fi.flight_number = #{flightNumber}
           and frd.dish_id = #{dishId}
+          and (case
+                   when ifnull(frd.cabin_type, 3) = 0 then 3
+                   else ifnull(frd.cabin_type, 3)
+               end) = #{cabinType}
           <if test="excludeId != null">
               and frd.id != #{excludeId}
           </if>
@@ -34,9 +42,9 @@
 
     <insert id="insertBinding">
         insert into flight_route_dish
-        (departure, destination, dish_id, dish_source, sort)
+        (departure, destination, dish_id, dish_source, cabin_type, sort)
         values
-        (#{departure}, #{destination}, #{dishId}, #{dishSource}, #{sort})
+        (#{departure}, #{destination}, #{dishId}, #{dishSource}, #{cabinType}, #{sort})
     </insert>
 
     <update id="updateBinding">
@@ -45,6 +53,7 @@
             destination = #{destination},
             dish_id = #{dishId},
             dish_source = #{dishSource},
+            cabin_type = #{cabinType},
             sort = #{sort}
         where id = #{id}
     </update>

@@ -11,4 +11,5 @@ public class FlightMealBindingDTO implements Serializable {
     private Integer dishId;
     private Integer dishSource;
     private Integer sort;
+    private Integer cabinType;
 }

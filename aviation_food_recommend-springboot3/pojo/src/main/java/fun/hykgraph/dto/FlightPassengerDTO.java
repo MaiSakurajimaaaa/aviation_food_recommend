@@ -13,4 +13,5 @@ public class FlightPassengerDTO implements Serializable {
     private String phone;
     private Integer gender;
     private Integer preferenceCompleted;
+    private Integer cabinType;
 }

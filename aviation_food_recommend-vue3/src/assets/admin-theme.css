@@ -1,0 +1,52 @@
+:root {
+  --af-brand-1: #0d7ac9;
+  --af-brand-2: #15a0d6;
+  --af-ink-1: #16314b;
+  --af-ink-2: #4e6b84;
+  --af-line: #d8e5f2;
+  --af-card-bg: rgba(255, 255, 255, 0.94);
+  --af-bg-layer:
+    radial-gradient(circle at 12% 8%, rgba(255, 182, 92, 0.2), transparent 26%),
+    radial-gradient(circle at 84% 18%, rgba(88, 197, 255, 0.22), transparent 28%),
+    linear-gradient(152deg, #ebf5ff 0%, #f2fbff 53%, #fff7ea 100%);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--af-bg-layer);
+  color: var(--af-ink-1);
+  font-family: 'Avenir Next', 'DIN Alternate', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
+}
+
+#app {
+  min-height: 100%;
+}
+
+.el-card {
+  border: 1px solid var(--af-line);
+  border-radius: 16px;
+  background: var(--af-card-bg);
+  box-shadow: 0 14px 32px rgba(17, 56, 94, 0.08);
+}
+
+.el-card__header {
+  border-bottom: 1px solid #e6eef6;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--af-brand-1);
+  --el-button-border-color: var(--af-brand-1);
+  --el-button-hover-bg-color: var(--af-brand-2);
+  --el-button-hover-border-color: var(--af-brand-2);
+}
+
+.el-table {
+  --el-table-header-bg-color: #f3f8fd;
+  --el-table-row-hover-bg-color: #f7fbff;
+}

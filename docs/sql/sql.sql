@@ -137,6 +137,7 @@ create table flight_route_dish
     destination varchar(50) null,
     dish_id     bigint      null,
     dish_source tinyint     null,
+    cabin_type  tinyint default 3 null comment '舱位类型:1头等舱,2商务舱,3经济舱',
     sort        int         null
 )
     charset = utf8mb4;
@@ -215,6 +216,7 @@ create table user
     frequent_flyer_no    varchar(32)       null,
     preference_completed tinyint default 0 null,
     current_flight_id    bigint            null,
+    cabin_type           tinyint default 3 null comment '舱位类型:1头等舱,2商务舱,3经济舱',
     create_time          datetime          null,
     update_time          datetime          null,
     gender               tinyint           null,

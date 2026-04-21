@@ -8,6 +8,7 @@ type UpdateUserPayload = {
   gender?: number
   pic?: string
   idNumber?: string
+  cabinType?: number
 }
 
 // 根据id查询用户信息

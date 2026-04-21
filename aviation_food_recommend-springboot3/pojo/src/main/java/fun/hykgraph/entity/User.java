@@ -23,6 +23,7 @@ public class User implements Serializable {
     private String pic;
     private Integer preferenceCompleted;
     private Integer currentFlightId;
+    private Integer cabinType;
     private LocalDateTime createTime;
 
 }

@@ -6,6 +6,7 @@ import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
+import './assets/admin-theme.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
 const app = createApp(App)

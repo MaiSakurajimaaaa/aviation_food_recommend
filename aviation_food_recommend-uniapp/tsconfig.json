@@ -10,6 +10,7 @@
     "noImplicitThis": true,
     "isolatedModules": true,
     "esModuleInterop": true,
+    "ignoreDeprecations": "6.0",
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "sourceMap": true,

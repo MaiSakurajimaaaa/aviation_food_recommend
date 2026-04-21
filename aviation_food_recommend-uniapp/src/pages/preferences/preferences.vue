@@ -47,16 +47,12 @@
 import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getPreferenceAPI, savePreferenceAPI } from '@/api/preference'
+import { MEAL_TYPE_OPTIONS } from '@/utils/meal'
 import type { UserPreference } from '@/types/aviation'
 
 const isFirstEntry = ref(false)
 const flavorOptions = ['清淡', '咸香', '微辣', '甜口', '低脂', '高蛋白']
-const mealTypeOptions = [
-  { value: '1', label: '儿童餐' },
-  { value: '2', label: '标准餐' },
-  { value: '3', label: '清真餐' },
-  { value: '4', label: '素食餐' },
-]
+const mealTypeOptions = MEAL_TYPE_OPTIONS
 
 const likedFlavors = ref<string[]>([])
 const mealType = ref('2')
@@ -79,7 +75,9 @@ const parseJsonArray = (raw?: string) => {
 
 const onMealTypeChange = (event: any) => {
   const index = Number(event.detail.value)
-  mealType.value = mealTypeOptions[index].value
+  const option = mealTypeOptions[index]
+  if (!option) return
+  mealType.value = option.value
 }
 
 const toggleLikedFlavor = (tag: string) => {

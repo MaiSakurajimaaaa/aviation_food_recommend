@@ -1,8 +1,17 @@
 package fun.hykgraph.controller.user;
 
+import fun.hykgraph.context.BaseContext;
+import fun.hykgraph.entity.FlightInfo;
+import fun.hykgraph.entity.User;
+import fun.hykgraph.mapper.DishMapper;
+import fun.hykgraph.mapper.FlightInfoMapper;
 import fun.hykgraph.mapper.RecommendationMapper;
+import fun.hykgraph.mapper.UserMapper;
+import fun.hykgraph.mapper.UserPreferenceMapper;
+import fun.hykgraph.result.Result;
 import fun.hykgraph.vo.PendingRatingInfoVO;
 import fun.hykgraph.vo.RecommendationDishVO;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
@@ -15,6 +24,7 @@ import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +45,93 @@ class RecommendationControllerTest {
 
     @Mock
     private RecommendationMapper recommendationMapper;
+        @Mock
+        private UserMapper userMapper;
+        @Mock
+        private FlightInfoMapper flightInfoMapper;
+        @Mock
+        private UserPreferenceMapper userPreferenceMapper;
+        @Mock
+        private DishMapper dishMapper;
+
+        @AfterEach
+        void tearDown() {
+                BaseContext.removeCurrentId();
+        }
+
+        @Test
+        void list_shouldPassUserCabinTypeToCandidateQuery() {
+                RecommendationController controller = createControllerWithDependencies();
+                BaseContext.setCurrentId(7);
+
+                User user = User.builder()
+                                .id(7)
+                                .currentFlightId(100)
+                                .cabinType(2)
+                                .build();
+                FlightInfo flightInfo = new FlightInfo();
+                flightInfo.setId(100);
+                flightInfo.setMealCount(2);
+
+                when(userMapper.getById(7)).thenReturn(user);
+                when(flightInfoMapper.getById(100)).thenReturn(flightInfo);
+                when(recommendationMapper.listCandidateDishes(100, null, null, 10, Arrays.asList(2, 3))).thenReturn(Collections.emptyList());
+
+                Result<List<RecommendationDishVO>> result = controller.list(null, null, 1, 10);
+
+                assertNotNull(result);
+                assertEquals(0, result.getCode());
+                verify(recommendationMapper, times(1)).listCandidateDishes(100, null, null, 10, Arrays.asList(2, 3));
+        }
+
+        @Test
+        void list_shouldFallbackToEconomyCabinWhenCabinTypeMissing() {
+                RecommendationController controller = createControllerWithDependencies();
+                BaseContext.setCurrentId(8);
+
+                User user = User.builder()
+                                .id(8)
+                                .currentFlightId(101)
+                                .build();
+                FlightInfo flightInfo = new FlightInfo();
+                flightInfo.setId(101);
+                flightInfo.setMealCount(1);
+
+                when(userMapper.getById(8)).thenReturn(user);
+                when(flightInfoMapper.getById(101)).thenReturn(flightInfo);
+                when(recommendationMapper.listCandidateDishes(101, null, null, 10, Arrays.asList(3))).thenReturn(Collections.emptyList());
+
+                Result<List<RecommendationDishVO>> result = controller.list(null, null, 1, 10);
+
+                assertNotNull(result);
+                assertEquals(0, result.getCode());
+                verify(recommendationMapper, times(1)).listCandidateDishes(101, null, null, 10, Arrays.asList(3));
+        }
+
+        @Test
+        void list_shouldUseCascadeCabinSetForFirstClass() {
+                RecommendationController controller = createControllerWithDependencies();
+                BaseContext.setCurrentId(9);
+
+                User user = User.builder()
+                                .id(9)
+                                .currentFlightId(102)
+                                .cabinType(1)
+                                .build();
+                FlightInfo flightInfo = new FlightInfo();
+                flightInfo.setId(102);
+                flightInfo.setMealCount(2);
+
+                when(userMapper.getById(9)).thenReturn(user);
+                when(flightInfoMapper.getById(102)).thenReturn(flightInfo);
+                when(recommendationMapper.listCandidateDishes(102, null, null, 10, Arrays.asList(1, 2, 3))).thenReturn(Collections.emptyList());
+
+                Result<List<RecommendationDishVO>> result = controller.list(null, null, 1, 10);
+
+                assertNotNull(result);
+                assertEquals(0, result.getCode());
+                verify(recommendationMapper, times(1)).listCandidateDishes(102, null, null, 10, Arrays.asList(1, 2, 3));
+        }
 
     @Test
     void extractDishIdFromText_shouldParseFirstDishIdInsteadOfConcatenatingDigits() throws Exception {
@@ -240,4 +337,14 @@ class RecommendationControllerTest {
                                                         && "[11]".equals(String.valueOf(dishes));
                                 }));
                         }
+
+        private RecommendationController createControllerWithDependencies() {
+                RecommendationController controller = new RecommendationController();
+                ReflectionTestUtils.setField(controller, "recommendationMapper", recommendationMapper);
+                ReflectionTestUtils.setField(controller, "userMapper", userMapper);
+                ReflectionTestUtils.setField(controller, "flightInfoMapper", flightInfoMapper);
+                ReflectionTestUtils.setField(controller, "userPreferenceMapper", userPreferenceMapper);
+                ReflectionTestUtils.setField(controller, "dishMapper", dishMapper);
+                return controller;
+        }
 }

@@ -48,19 +48,14 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { selectRecommendationMealAPI } from '@/api/recommendation'
+import { getMealTypeLabel } from '@/utils/meal'
 import type { RecommendConfirmPayload } from '@/types/aviation'
 
 const meal = ref<RecommendConfirmPayload | null>(null)
 const submitting = ref(false)
 
 const formatMealType = (value?: number) => {
-  const map: Record<number, string> = {
-    1: '儿童餐',
-    2: '标准餐',
-    3: '清真餐',
-    4: '素食餐',
-  }
-  return value ? map[value] || '标准餐' : '标准餐'
+  return getMealTypeLabel(value, '标准餐')
 }
 
 const formatFlavor = (value?: string) => {

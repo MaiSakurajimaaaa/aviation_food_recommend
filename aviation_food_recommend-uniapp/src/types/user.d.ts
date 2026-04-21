@@ -16,5 +16,6 @@ export type ProfileDetail = BaseProfile & {
   gender?: number // 性别
   pic?: string // 头像
   idNumber?: string // 身份证号
+  cabinType?: number // 舱型：1头等舱 2商务舱 3经济舱
   currentFlightId?: number | null // 当前绑定航班ID
 }

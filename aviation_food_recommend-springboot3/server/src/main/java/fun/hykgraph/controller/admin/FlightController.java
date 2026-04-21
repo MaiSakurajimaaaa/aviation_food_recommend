@@ -19,14 +19,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/admin/flight")
 @Slf4j
 public class FlightController {
+
+    private static final int CABIN_FIRST = 1;
+    private static final int CABIN_BUSINESS = 2;
+    private static final int CABIN_ECONOMY = 3;
+    private static final Pattern ID_NUMBER_PATTERN = Pattern.compile("^\\d{17}[\\dXx]$");
+    private static final DateTimeFormatter ID_BIRTHDAY_FORMATTER = DateTimeFormatter.ofPattern("uuuuMMdd").withResolverStyle(ResolverStyle.STRICT);
 
     @Autowired
     private FlightInfoMapper flightInfoMapper;
@@ -147,14 +158,22 @@ public class FlightController {
         if (dto.getFlightId() == null) {
             return Result.error("flightId 不能为空");
         }
+        if (!isValidUserCabinType(dto.getCabinType())) {
+            return Result.error("旅客舱型不合法，仅支持1-头等舱、2-商务舱、3-经济舱");
+        }
+        if (!isValidIdNumber(dto.getIdNumber())) {
+            return Result.error("身份证号格式不正确");
+        }
+        String normalizedIdNumber = normalizeIdNumber(dto.getIdNumber());
         User user = User.builder()
                 .name(dto.getName())
                 .openid("admin-manual-" + UUID.randomUUID())
                 .phone(dto.getPhone())
                 .gender(dto.getGender())
-                .idNumber(dto.getIdNumber())
+                .idNumber(normalizedIdNumber)
                 .preferenceCompleted(0)
                 .currentFlightId(dto.getFlightId())
+                .cabinType(resolveUserCabinType(dto.getCabinType()))
                 .createTime(LocalDateTime.now())
                 .build();
         userMapper.insertByAdmin(user);
@@ -166,14 +185,22 @@ public class FlightController {
         if (dto.getId() == null) {
             return Result.error("id 不能为空");
         }
+        if (!isValidUserCabinType(dto.getCabinType())) {
+            return Result.error("旅客舱型不合法，仅支持1-头等舱、2-商务舱、3-经济舱");
+        }
+        if (!isValidIdNumber(dto.getIdNumber())) {
+            return Result.error("身份证号格式不正确");
+        }
+        String normalizedIdNumber = normalizeIdNumber(dto.getIdNumber());
         User user = User.builder()
                 .id(dto.getId())
                 .name(dto.getName())
                 .phone(dto.getPhone())
                 .gender(dto.getGender())
-                .idNumber(dto.getIdNumber())
+                .idNumber(normalizedIdNumber)
                 .preferenceCompleted(resolvePreferenceCompleted(dto.getId()))
                 .currentFlightId(dto.getFlightId())
+                .cabinType(resolveUserCabinType(dto.getCabinType()))
                 .build();
         userMapper.update(user);
         return Result.success();
@@ -193,6 +220,36 @@ public class FlightController {
         }
         String compact = raw.replace("[", "").replace("]", "").replace("\"", "").trim();
         return compact.isEmpty() ? 0 : 1;
+    }
+
+    private boolean isValidIdNumber(String idNumber) {
+        String normalized = normalizeIdNumber(idNumber);
+        if (normalized == null) {
+            return true;
+        }
+        if (!ID_NUMBER_PATTERN.matcher(normalized).matches()) {
+            return false;
+        }
+        String birthday = normalized.substring(6, 14);
+        LocalDate birthdayDate;
+        try {
+            birthdayDate = LocalDate.parse(birthday, ID_BIRTHDAY_FORMATTER);
+        } catch (DateTimeParseException ex) {
+            return false;
+        }
+        LocalDate today = LocalDate.now();
+        return !birthdayDate.isAfter(today) && !birthdayDate.isBefore(today.minusYears(130));
+    }
+
+    private String normalizeIdNumber(String idNumber) {
+        if (idNumber == null) {
+            return null;
+        }
+        String normalized = idNumber.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        return normalized.toUpperCase();
     }
 
     @DeleteMapping("/passenger/{id}")
@@ -217,6 +274,9 @@ public class FlightController {
         if (dto.getDishId() == null) {
             return Result.error("dishId 不能为空");
         }
+        if (!isValidMealCabinType(dto.getCabinType())) {
+            return Result.error("餐食舱型不合法，仅支持1-头等舱、2-商务舱、3-经济舱");
+        }
         FlightInfo flightInfo = flightInfoMapper.getByFlightNumber(dto.getFlightNumber().trim());
         if (flightInfo == null) {
             return Result.error("航班不存在");
@@ -225,15 +285,17 @@ public class FlightController {
         if (dish == null) {
             return Result.error("餐食不存在");
         }
-        Integer duplicated = flightRouteDishMapper.countByFlightNumberAndDishId(dto.getFlightNumber().trim(), dto.getDishId(), null);
+        Integer cabinType = resolveMealCabinType(dto.getCabinType());
+        Integer duplicated = flightRouteDishMapper.countByFlightNumberAndDishId(dto.getFlightNumber().trim(), dto.getDishId(), cabinType, null);
         if (duplicated != null && duplicated > 0) {
-            return Result.error("该航班已绑定该餐食");
+            return Result.error("该航班在当前舱型下已绑定该餐食");
         }
         flightRouteDishMapper.insertBinding(
                 flightInfo.getDeparture(),
                 flightInfo.getDestination(),
                 dto.getDishId(),
                 dto.getDishSource() == null ? 1 : dto.getDishSource(),
+                cabinType,
                 dto.getSort() == null ? 1 : dto.getSort()
         );
         return Result.success();
@@ -250,6 +312,9 @@ public class FlightController {
         if (dto.getDishId() == null) {
             return Result.error("dishId 不能为空");
         }
+        if (!isValidMealCabinType(dto.getCabinType())) {
+            return Result.error("餐食舱型不合法，仅支持1-头等舱、2-商务舱、3-经济舱");
+        }
         FlightInfo flightInfo = flightInfoMapper.getByFlightNumber(dto.getFlightNumber().trim());
         if (flightInfo == null) {
             return Result.error("航班不存在");
@@ -258,9 +323,10 @@ public class FlightController {
         if (dish == null) {
             return Result.error("餐食不存在");
         }
-        Integer duplicated = flightRouteDishMapper.countByFlightNumberAndDishId(dto.getFlightNumber().trim(), dto.getDishId(), dto.getId());
+        Integer cabinType = resolveMealCabinType(dto.getCabinType());
+        Integer duplicated = flightRouteDishMapper.countByFlightNumberAndDishId(dto.getFlightNumber().trim(), dto.getDishId(), cabinType, dto.getId());
         if (duplicated != null && duplicated > 0) {
-            return Result.error("该航班已绑定该餐食");
+            return Result.error("该航班在当前舱型下已绑定该餐食");
         }
         flightRouteDishMapper.updateBinding(
                 dto.getId(),
@@ -268,6 +334,7 @@ public class FlightController {
                 flightInfo.getDestination(),
                 dto.getDishId(),
                 dto.getDishSource() == null ? 1 : dto.getDishSource(),
+                cabinType,
                 dto.getSort() == null ? 1 : dto.getSort()
         );
         return Result.success();
@@ -277,5 +344,30 @@ public class FlightController {
     public Result deleteMeal(@PathVariable Integer id) {
         flightRouteDishMapper.deleteById(id);
         return Result.success();
+    }
+
+    private boolean isValidUserCabinType(Integer cabinType) {
+        return cabinType == null || cabinType == CABIN_FIRST || cabinType == CABIN_BUSINESS || cabinType == CABIN_ECONOMY;
+    }
+
+    private Integer resolveUserCabinType(Integer cabinType) {
+        if (cabinType == null) {
+            return CABIN_ECONOMY;
+        }
+        return isValidUserCabinType(cabinType) ? cabinType : CABIN_ECONOMY;
+    }
+
+    private boolean isValidMealCabinType(Integer cabinType) {
+        return cabinType == null
+                || cabinType == CABIN_FIRST
+                || cabinType == CABIN_BUSINESS
+                || cabinType == CABIN_ECONOMY;
+    }
+
+    private Integer resolveMealCabinType(Integer cabinType) {
+        if (cabinType == null) {
+            return CABIN_ECONOMY;
+        }
+        return isValidMealCabinType(cabinType) ? cabinType : CABIN_ECONOMY;
     }
 }

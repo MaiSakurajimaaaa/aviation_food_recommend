@@ -18,19 +18,18 @@ import java.sql.SQLException;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler
-    public Result excepitonHandler(BaseException ex){
-        log.info("异常信息：{}", ex.getMessage());
+    public Result<String> handleBaseException(BaseException ex){
+        log.warn("业务异常: {}", ex.getMessage());
         return Result.error(ex.getMessage());
     }
 
     @ExceptionHandler
-    public Result exceptionHandler(SQLIntegrityConstraintViolationException ex){
+    public Result<String> handleSqlIntegrityException(SQLIntegrityConstraintViolationException ex){
         // Duplicate entry 'zhangsan' for key 'employee.idx_username'
         String message = ex.getMessage();
-        System.out.println("什么逆天sql错误到是打印啊！！！" + message);
         if (message.contains("Duplicate entry")){
             String[] split = message.split(" ");
-            String username = split[2];
+            String username = split[2].replace("'", "");
             String msg = username + MessageConstant.ALREADY_EXiST;
             return Result.error(msg);
         }else {
@@ -39,14 +38,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler
-    public Result exceptionHandler(SQLException ex){
+    public Result<String> handleSqlException(SQLException ex){
         log.error("SQL异常", ex);
-        return Result.error("数据库执行失败: " + ex.getMessage());
+        return Result.error("数据库执行失败，请稍后重试");
     }
 
     @ExceptionHandler
-    public Result exceptionHandler(Exception ex){
+    public Result<String> handleException(Exception ex){
         log.error("系统异常", ex);
-        return Result.error("系统异常: " + ex.getMessage());
+        return Result.error("系统繁忙，请稍后再试");
     }
 }

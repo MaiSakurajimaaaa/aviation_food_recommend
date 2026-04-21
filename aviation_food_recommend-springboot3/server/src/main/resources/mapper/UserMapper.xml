@@ -17,7 +17,8 @@
             <if test="pic != null">pic = #{pic},</if>
             <if test="idNumber != null">id_number = #{idNumber},</if>
             <if test="preferenceCompleted != null">preference_completed = #{preferenceCompleted},</if>
-            <if test="currentFlightId != null">current_flight_id = #{currentFlightId}</if>
+            <if test="currentFlightId != null">current_flight_id = #{currentFlightId},</if>
+            <if test="cabinType != null">cabin_type = #{cabinType},</if>
         </set>
         where id = #{id}
     </update>
@@ -31,6 +32,7 @@
             id_number,
             preference_completed,
             current_flight_id,
+            cabin_type,
             create_time
         ) values (
             #{name},
@@ -40,6 +42,7 @@
             #{idNumber},
             #{preferenceCompleted},
             #{currentFlightId},
+            #{cabinType},
             #{createTime}
         )
     </insert>
@@ -62,8 +65,16 @@
             ifnull(u.name, concat('旅客', u.id)) as name,
             u.id_number as idNumber,
             case
-                when u.id_number is not null and length(u.id_number) = 18
-                then timestampdiff(year, str_to_date(substring(u.id_number, 7, 8), '%Y%m%d'), curdate())
+                when u.id_number is not null
+                     and length(trim(u.id_number)) = 18
+                     and trim(u.id_number) regexp '^[0-9]{17}[0-9Xx]$'
+                then case
+                    when str_to_date(substring(trim(u.id_number), 7, 8), '%Y%m%d') is not null
+                        then timestampdiff(year, str_to_date(substring(trim(u.id_number), 7, 8), '%Y%m%d'), curdate())
+                    when substring(trim(u.id_number), 7, 4) regexp '^(19|20)[0-9]{2}$'
+                        then greatest(0, year(curdate()) - cast(substring(trim(u.id_number), 7, 4) as unsigned))
+                    else null
+                end
                 else null
             end as age,
             u.phone as phone,
@@ -93,6 +104,12 @@
                 ) then '已选餐'
                 else '未选餐'
             end as mealSelected
+            ,u.cabin_type as cabinType
+            ,case
+                when u.cabin_type = 1 then '头等舱'
+                when u.cabin_type = 2 then '商务舱'
+                else '经济舱'
+            end as cabinTypeLabel
         from user u
         where u.current_flight_id = #{flightId}
         order by u.id desc

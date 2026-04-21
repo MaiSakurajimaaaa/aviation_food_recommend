@@ -25,15 +25,32 @@ const mealDialogVisible = ref(false)
 const editingMealId = ref<number | null>(null)
 const mealForm = ref({
   dishId: undefined as number | undefined,
+  cabinType: 3,
   sort: 1,
 })
 const flightsPage = ref(1)
 const flightsPageSize = ref(10)
 const mealsPage = ref(1)
 const mealsPageSize = ref(10)
+const cabinTypeOptions = [
+  { value: 1, label: '头等舱' },
+  { value: 2, label: '商务舱' },
+  { value: 3, label: '经济舱' },
+]
 
 const FLIGHT_NUMBER_REGEX = /^[A-Za-z0-9-]+$/
 const HAS_ALNUM_REGEX = /[A-Za-z0-9]/
+
+const normalizeMealCabinType = (value?: number | null) => {
+  const numeric = Number(value)
+  return [1, 2, 3].includes(numeric) ? numeric : 3
+}
+
+const formatCabinTypeLabel = (value?: number | null) => {
+  const numeric = Number(value)
+  const option = cabinTypeOptions.find((item) => item.value === numeric)
+  return option?.label || '经济舱'
+}
 
 const validatePlace = (value: string, fieldName: '出发地' | '目的地', required = false) => {
   const trimmed = value.trim()
@@ -160,6 +177,7 @@ const openAddMealDialog = () => {
   editingMealId.value = null
   mealForm.value = {
     dishId: undefined,
+    cabinType: 3,
     sort: (mealBindings.value?.length || 0) + 1,
   }
   mealDialogVisible.value = true
@@ -169,6 +187,7 @@ const openEditMealDialog = (row: FlightMealBindingItem) => {
   editingMealId.value = row.id
   mealForm.value = {
     dishId: row.dishId,
+    cabinType: normalizeMealCabinType(row.cabinType),
     sort: row.sort || 1,
   }
   mealDialogVisible.value = true
@@ -183,6 +202,10 @@ const saveMeal = async () => {
     ElMessage.warning('请选择餐食')
     return
   }
+  if (![1, 2, 3].includes(mealForm.value.cabinType)) {
+    ElMessage.warning('舱型必须为头等舱/商务舱/经济舱')
+    return
+  }
   if (!Number.isInteger(mealForm.value.sort) || (mealForm.value.sort || 0) < 1) {
     ElMessage.warning('排序必须为大于0的整数')
     return
@@ -191,6 +214,7 @@ const saveMeal = async () => {
     flightNumber: selectedFlight.value.flightNumber,
     dishId: mealForm.value.dishId,
     dishSource: 1,
+    cabinType: mealForm.value.cabinType,
     sort: mealForm.value.sort || 1,
   }
   if (editingMealId.value) {
@@ -302,10 +326,23 @@ onMounted(async () => {
         </div>
       </template>
 
+      <el-alert
+        title="舱型层级规则：头等舱可见头等舱+商务舱+经济舱餐食，商务舱可见商务舱+经济舱餐食，经济舱仅可见经济舱餐食。"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 12px"
+      />
+
       <el-table :data="pagedMeals" border stripe>
         <el-table-column prop="id" label="绑定ID" width="90" />
         <el-table-column prop="dishId" label="餐食ID" width="90" />
         <el-table-column prop="dishName" label="餐食名称" min-width="180" />
+        <el-table-column label="舱型" width="110">
+          <template #default="scope">
+            {{ formatCabinTypeLabel(scope.row.cabinType) }}
+          </template>
+        </el-table-column>
         <el-table-column label="餐食状态" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.dishStatus === 1 ? 'success' : 'info'">
@@ -340,6 +377,11 @@ onMounted(async () => {
         <el-form-item label="餐食" required>
           <el-select v-model="mealForm.dishId" placeholder="请选择餐食" style="width: 100%" filterable>
             <el-option v-for="item in dishOptions" :key="item.id" :label="`${item.name}（ID:${item.id}）`" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="舱型" required>
+          <el-select v-model="mealForm.cabinType" style="width: 100%">
+            <el-option v-for="item in cabinTypeOptions" :key="item.value" :value="item.value" :label="item.label" />
           </el-select>
         </el-form-item>
         <el-form-item label="排序">

@@ -42,18 +42,21 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
         }
         // 1、从请求头中获取令牌
         String token = request.getHeader(jwtProperties.getUserTokenName());
+        if (token == null || token.isBlank()) {
+            response.setStatus(401);
+            return false;
+        }
         // 2、校验令牌
         try {
-            log.info("jwt校验:{}", token);
             Claims claims = JwtUtil.parseJWT(jwtProperties.getUserSecretKey(), token);
             Integer userId = Integer.valueOf(claims.get(JwtClaimsConstant.USER_ID).toString());
-            log.info("当前用户的id：{}", userId);
             // 将id存到当前线程thread的局部空间里面，并在controller,service或者其他地方进行调用获取id
             // 这个Client端的线程应该和管理端的不一样，因此有两个线程id
             BaseContext.setCurrentId(userId);
             // 3、通过，放行
             return true;
         } catch (Exception ex) {
+            log.warn("用户端JWT校验失败: {}", ex.getMessage());
             // 4、不通过，响应401状态码
             response.setStatus(401);
             return false;

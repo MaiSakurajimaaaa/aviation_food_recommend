@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,11 +57,12 @@ public class MealSelectionTask {
                 if (userId == null) {
                     continue;
                 }
+                Integer cabinType = resolveUserCabinType(toInteger(userRow.get("cabinType")));
                 Integer existCount = recommendationMapper.existsMealSelection(userId, flight.getId(), 1);
                 if (existCount != null && existCount > 0) {
                     continue;
                 }
-                autoPickForUser(userId, flight);
+                autoPickForUser(userId, flight, cabinType);
             }
         }
     }
@@ -95,12 +97,18 @@ public class MealSelectionTask {
         announcementMapper.insert(announcement);
     }
 
-    private void autoPickForUser(Integer userId, FlightInfo flight) {
+    private void autoPickForUser(Integer userId, FlightInfo flight, Integer cabinType) {
         UserPreference preference = userPreferenceMapper.getByUserId(userId);
         Integer mealType = parseMealType(preference == null ? null : preference.getMealTypePreferences());
         String flavor = parseFlavor(preference == null ? null : preference.getFlavorPreferences());
 
-        List<RecommendationDishVO> candidates = recommendationMapper.listCandidateDishes(flight.getId(), mealType, flavor, 20);
+        List<RecommendationDishVO> candidates = recommendationMapper.listCandidateDishes(
+                flight.getId(),
+                mealType,
+                flavor,
+                20,
+            resolveUserCabinTypes(cabinType)
+        );
         if (candidates == null || candidates.isEmpty()) {
             log.warn("逾期自动选餐失败：无候选餐食，userId={}, flightId={}", userId, flight.getId());
             return;
@@ -195,5 +203,23 @@ public class MealSelectionTask {
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    private Integer resolveUserCabinType(Integer cabinType) {
+        if (cabinType == null) {
+            return 3;
+        }
+        return (cabinType >= 1 && cabinType <= 3) ? cabinType : 3;
+    }
+
+    private List<Integer> resolveUserCabinTypes(Integer cabinType) {
+        Integer normalizedCabinType = resolveUserCabinType(cabinType);
+        if (normalizedCabinType == 1) {
+            return Arrays.asList(1, 2, 3);
+        }
+        if (normalizedCabinType == 2) {
+            return Arrays.asList(2, 3);
+        }
+        return List.of(3);
     }
 }

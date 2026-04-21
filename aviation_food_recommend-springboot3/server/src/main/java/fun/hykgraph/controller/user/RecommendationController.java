@@ -38,6 +38,9 @@ public class RecommendationController {
     private static final long RATING_EXPIRE_DAYS = 7;
     private static final long RATING_DEFER_HOURS = 24;
     private static final int DEFAULT_MEAL_ORDER = 1;
+    private static final int CABIN_FIRST = 1;
+    private static final int CABIN_BUSINESS = 2;
+    private static final int CABIN_ECONOMY = 3;
     private static final List<String> BREAKFAST_KEYWORDS = Arrays.asList("粥", "包", "馒头", "豆浆", "油条", "面", "面包", "三明治", "吐司", "蛋");
 
     @Autowired
@@ -140,7 +143,14 @@ public class RecommendationController {
         if (flavorParam != null && !ALLOWED_FLAVORS.contains(flavorParam)) {
             return Result.error("flavor不在允许范围");
         }
-        List<RecommendationDishVO> list = recommendationMapper.listCandidateDishes(flightId, mealTypeParam, flavorParam, Math.min(size, 20));
+        List<Integer> cabinTypes = resolveUserCabinTypes(user);
+        List<RecommendationDishVO> list = recommendationMapper.listCandidateDishes(
+                flightId,
+                mealTypeParam,
+                flavorParam,
+                Math.min(size, 20),
+            cabinTypes
+        );
         if (list.isEmpty()) {
             return Result.success(list);
         }
@@ -225,6 +235,27 @@ public class RecommendationController {
             return null;
         }
         return trimmed;
+    }
+
+    private List<Integer> resolveUserCabinTypes(User user) {
+        int cabinType = resolveUserCabinType(user == null ? null : user.getCabinType());
+        if (cabinType == CABIN_FIRST) {
+            return Arrays.asList(CABIN_FIRST, CABIN_BUSINESS, CABIN_ECONOMY);
+        }
+        if (cabinType == CABIN_BUSINESS) {
+            return Arrays.asList(CABIN_BUSINESS, CABIN_ECONOMY);
+        }
+        return Collections.singletonList(CABIN_ECONOMY);
+    }
+
+    private int resolveUserCabinType(Integer cabinType) {
+        if (cabinType == null) {
+            return CABIN_ECONOMY;
+        }
+        if (cabinType >= CABIN_FIRST && cabinType <= CABIN_ECONOMY) {
+            return cabinType;
+        }
+        return CABIN_ECONOMY;
     }
 
     @GetMapping("/recommendation/history")

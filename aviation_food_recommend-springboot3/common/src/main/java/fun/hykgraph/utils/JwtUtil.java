@@ -4,13 +4,11 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
 
-@Slf4j
 public class JwtUtil {
     /**
      * 生成jwt
@@ -49,15 +47,11 @@ public class JwtUtil {
      * @return
      */
     public static Claims parseJWT(String secretKey, String token) {
-        // 得到DefaultJwtParser
-        log.info("来到这里校验token是否一致");
-        System.out.println(token);
         Claims claims = Jwts.parser()
                 // 设置签名的秘钥
                 .setSigningKey(secretKey.getBytes(StandardCharsets.UTF_8))
                 // 设置需要解析的jwt
                 .parseClaimsJws(token).getBody();
-        System.out.println("claims " + claims);
         return claims;
     }
 }

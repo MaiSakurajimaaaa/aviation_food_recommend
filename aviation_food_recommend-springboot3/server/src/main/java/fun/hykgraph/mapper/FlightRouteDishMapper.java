@@ -13,12 +13,14 @@ public interface FlightRouteDishMapper {
 
     Integer countByFlightNumberAndDishId(@Param("flightNumber") String flightNumber,
                                          @Param("dishId") Integer dishId,
+                                         @Param("cabinType") Integer cabinType,
                                          @Param("excludeId") Integer excludeId);
 
     void insertBinding(@Param("departure") String departure,
                        @Param("destination") String destination,
                        @Param("dishId") Integer dishId,
                        @Param("dishSource") Integer dishSource,
+                       @Param("cabinType") Integer cabinType,
                        @Param("sort") Integer sort);
 
     void updateBinding(@Param("id") Integer id,
@@ -26,6 +28,7 @@ public interface FlightRouteDishMapper {
                        @Param("destination") String destination,
                        @Param("dishId") Integer dishId,
                        @Param("dishSource") Integer dishSource,
+                       @Param("cabinType") Integer cabinType,
                        @Param("sort") Integer sort);
 
     void deleteById(@Param("id") Integer id);

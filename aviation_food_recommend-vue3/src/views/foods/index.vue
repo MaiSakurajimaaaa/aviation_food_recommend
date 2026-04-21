@@ -7,6 +7,7 @@ import type { CategoryItem, DishItem, DishUpsertPayload } from '@/types/aviation
 import type { ElTable } from 'element-plus'
 import type { UploadFile, UploadRawFile } from 'element-plus'
 import { useSubmitting } from '@/composables/useSubmitting'
+import { MEAL_TYPE_OPTIONS, buildMealTypeDisplay, getMealTypeLabel, inferMealTypeByCategoryName } from '@/utils/meal'
 
 const loading = ref(false)
 const dishList = ref<DishItem[]>([])
@@ -37,13 +38,6 @@ const query = reactive({
   pageSize: 8,
   total: 0,
 })
-
-const mealTypeLabelMap: Record<number, string> = {
-  1: '儿童餐',
-  2: '标准餐',
-  3: '清真餐',
-  4: '素食餐',
-}
 
 const flavorTypeOptions = ['清淡', '微辣', '中辣', '重辣', '低脂', '高蛋白']
 
@@ -137,6 +131,22 @@ const openEditDialog = (row: DishItem) => {
   editDialogVisible.value = true
 }
 
+const handleDishCategoryChange = (categoryId?: number) => {
+  const categoryName = getCategoryName(categoryId)
+  const suggestedMealType = inferMealTypeByCategoryName(categoryName)
+  if (!suggestedMealType) {
+    return
+  }
+  if (!dishForm.mealType) {
+    dishForm.mealType = suggestedMealType
+    ElMessage.info(`已按分类自动带出餐型：${getMealTypeLabel(suggestedMealType)}`)
+    return
+  }
+  if (dishForm.mealType !== suggestedMealType) {
+    ElMessage.warning(`当前分类通常对应${getMealTypeLabel(suggestedMealType)}，请确认餐型是否设置正确`)
+  }
+}
+
 const convertFileToBase64 = (file: File) => {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -183,6 +193,11 @@ const saveDish = async () => {
 
   if (!validateFlavorSelection(dishForm.flavorTags)) {
     return
+  }
+
+  const suggestedMealType = inferMealTypeByCategoryName(getCategoryName(dishForm.categoryId))
+  if (suggestedMealType && suggestedMealType !== dishForm.mealType) {
+    ElMessage.warning(`分类与餐型存在偏差，建议餐型：${getMealTypeLabel(suggestedMealType)}`)
   }
 
   const normalizedFlavorTags = normalizeFlavorTags(dishForm.flavorTags)
@@ -295,8 +310,14 @@ const bulkSetStatus = async (targetStatus: 0 | 1) => {
   clearSelection()
 }
 
-const getCategoryName = (categoryId: number) => {
+const getCategoryName = (categoryId?: number) => {
+  if (!categoryId) return '-'
   return categoryList.value.find((item) => item.id === categoryId)?.name || '-'
+}
+
+const getMealTypeDisplay = (row: DishItem) => {
+  const categoryName = getCategoryName(row.categoryId)
+  return buildMealTypeDisplay(row.mealType, categoryName)
 }
 
 const resetQuery = () => {
@@ -366,7 +387,7 @@ onMounted(async () => {
         <template #default="scope">{{ getCategoryName(scope.row.categoryId) }}</template>
       </el-table-column>
       <el-table-column label="餐型" min-width="120">
-        <template #default="scope">{{ mealTypeLabelMap[scope.row.mealType] || '未设置' }}</template>
+        <template #default="scope">{{ getMealTypeDisplay(scope.row) }}</template>
       </el-table-column>
       <el-table-column label="选择类型" min-width="180">
         <template #default="scope">{{ formatFlavorTags(scope.row.flavorTags) }}</template>
@@ -413,7 +434,7 @@ onMounted(async () => {
           <el-input v-model="dishForm.name" placeholder="请输入餐食名称" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="分类" required>
-          <el-select v-model="dishForm.categoryId" placeholder="请选择分类" style="width: 100%">
+          <el-select v-model="dishForm.categoryId" placeholder="请选择分类" style="width: 100%" @change="handleDishCategoryChange">
             <el-option v-for="item in categoryList" :key="item.id" :label="item.name" :value="item.id" />
           </el-select>
         </el-form-item>
@@ -435,10 +456,7 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="餐型">
           <el-select v-model="dishForm.mealType" placeholder="请选择餐型" style="width: 100%">
-            <el-option :value="1" label="儿童餐" />
-            <el-option :value="2" label="标准餐" />
-            <el-option :value="3" label="清真餐" />
-            <el-option :value="4" label="素食餐" />
+            <el-option v-for="option in MEAL_TYPE_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
           </el-select>
         </el-form-item>
         <el-form-item label="选择类型">

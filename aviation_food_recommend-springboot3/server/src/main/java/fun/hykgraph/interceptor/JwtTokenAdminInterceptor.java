@@ -42,18 +42,20 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
         }
         // 1、从请求头中获取令牌
         String token = request.getHeader(jwtProperties.getEmployeeTokenName());
-        System.out.println("-------------------------------- token -------------------------------- " + token);
+        if (token == null || token.isBlank()) {
+            response.setStatus(401);
+            return false;
+        }
         // 2、校验令牌
         try {
-            log.info("jwt校验:{}", token);
             Claims claims = JwtUtil.parseJWT(jwtProperties.getEmployeeSecretKey(), token);
-            Integer EmployeeId = Integer.valueOf(claims.get(JwtClaimsConstant.EMPLOYEE_ID).toString());
-            log.info("当前用户id：{}", EmployeeId);
+            Integer employeeId = Integer.valueOf(claims.get(JwtClaimsConstant.EMPLOYEE_ID).toString());
             // 将id存到当前线程thread的局部空间里面，并在controller,service或者其他地方进行调用获取id
-            BaseContext.setCurrentId(EmployeeId);
+            BaseContext.setCurrentId(employeeId);
             // 3、通过，放行
             return true;
         } catch (Exception ex) {
+            log.warn("管理端JWT校验失败: {}", ex.getMessage());
             // 4、不通过，响应401状态码
             response.setStatus(401);
             return false;

@@ -1,5 +1,5 @@
 import { http } from '@/utils/http'
-import type { MealSelectResult, PendingRatingInfo, RecommendationDish, RecommendationTopItem } from '@/types/aviation'
+import type { AnnouncementItem, MealSelectResult, PendingRatingInfo, RecommendationDish, RecommendationTopItem } from '@/types/aviation'
 
 export const getRecommendationListAPI = (params?: { mealType?: number; flavor?: string; mealOrder?: number; size?: number }) => {
   const query = Object.fromEntries(
@@ -27,7 +27,7 @@ export const getPendingRatingAPI = () => {
 }
 
 export const getAnnouncementListAPI = () => {
-  return http<Array<{ id: number; title: string; content: string }>>({
+  return http<AnnouncementItem[]>({
     method: 'GET',
     url: '/user/announcement/list',
   })

@@ -24,6 +24,17 @@
       </view>
     </view>
 
+    <view class="notice-card card" @click="openAnnouncementCenter">
+      <view>
+        <view class="notice-title">公告中心</view>
+        <view class="notice-desc">{{ announcementUnread ? `你有 ${formatUnreadCount(announcementUnread)} 条未读公告` : '暂无未读公告，点击查看历史通知' }}</view>
+      </view>
+      <view class="notice-right">
+        <view class="notice-link">查看公告</view>
+        <view class="notice-badge" v-if="announcementUnread">{{ formatUnreadCount(announcementUnread) }}</view>
+      </view>
+    </view>
+
     <view class="rating-card card" v-if="pendingRatingList.length">
       <view>
         <view class="rating-title">航班已结束，待评分 {{ pendingRatingList.length }} 条</view>
@@ -159,6 +170,7 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import {
+  getAnnouncementListAPI,
   getPendingRatingAPI,
   getRecommendationHistoryAPI,
   getRecommendationListAPI,
@@ -167,16 +179,19 @@ import {
 } from '@/api/recommendation'
 import { bindFlightAPI } from '@/api/flight'
 import { useFlightContext } from '@/composables/useFlightContext'
-import type { FlightInfo, PendingRatingInfo, RecommendationDish, RecommendationTopItem, RecommendConfirmPayload } from '@/types/aviation'
+import { countUnreadAnnouncements, filterActiveAnnouncements, sortAnnouncementsByTime } from '@/utils/announcement'
+import { MEAL_TYPE_FILTER_OPTIONS, getMealTypeLabel } from '@/utils/meal'
+import type {
+  AnnouncementItem,
+  FlightInfo,
+  PendingRatingInfo,
+  RecommendationDish,
+  RecommendationTopItem,
+  RecommendConfirmPayload,
+} from '@/types/aviation'
 
 const flavorOptions = ['清淡', '咸香', '微辣', '甜口', '低脂', '高蛋白']
-const mealTypeOptions = [
-  {value: '', label: '全部餐型'},
-  {value: '1', label: '儿童餐'},
-  {value: '2', label: '标准餐'},
-  {value: '3', label: '清真餐'},
-  {value: '4', label: '素食餐'},
-]
+const mealTypeOptions = MEAL_TYPE_FILTER_OPTIONS
 
 const selectedFlavor = ref('')
 const selectedMealType = ref('')
@@ -185,6 +200,7 @@ const list = ref<RecommendationDish[]>([])
 const ranking = ref<RecommendationTopItem[]>([])
 const recommendationHistory = ref<Record<string, unknown>[]>([])
 const pendingRatingList = ref<PendingRatingInfo[]>([])
+const announcementUnread = ref(0)
 const selectedMealTypeLabel = ref('全部餐型')
 const candidateFlights = ref<FlightInfo[]>([])
 const currentFlight = ref<FlightInfo | null>(null)
@@ -200,6 +216,11 @@ const resolveDishImage = (item: RecommendationDish, index: number) => {
   return fallbackDishImages[index % fallbackDishImages.length]
 }
 
+const formatUnreadCount = (count: number) => {
+  if (count > 99) return '99+'
+  return String(count)
+}
+
 const onSwiperChange = (event: any) => {
   swiperCurrent.value = Number(event.detail.current || 0)
 }
@@ -207,6 +228,7 @@ const onSwiperChange = (event: any) => {
 const onMealTypeChange = (event: any) => {
   const index = Number(event.detail.value)
   const option = mealTypeOptions[index]
+  if (!option) return
   selectedMealType.value = option.value
   selectedMealTypeLabel.value = option.label
 }
@@ -243,13 +265,7 @@ const resetFilter = () => {
 }
 
 const formatMealType = (value?: number) => {
-  const map: Record<number, string> = {
-    1: '儿童餐',
-    2: '标准餐',
-    3: '清真餐',
-    4: '素食餐',
-  }
-  return value ? map[value] || '标准餐' : '标准餐'
+  return getMealTypeLabel(value, '标准餐')
 }
 
 const formatFlavor = (value?: string) => {
@@ -402,7 +418,7 @@ const loadFlightContext = async () => {
 
 const loadRecommendationData = async () => {
   const currentDishId = list.value[swiperCurrent.value]?.dishId
-  const [recRes, rankRes, historyRes, pendingRes] = await Promise.all([
+  const [recRes, rankRes, historyRes, pendingRes, announcementRes] = await Promise.all([
     getRecommendationListAPI({
       flavor: selectedFlavor.value || undefined,
       mealType: selectedMealType.value ? Number(selectedMealType.value) : undefined,
@@ -412,11 +428,14 @@ const loadRecommendationData = async () => {
     getRecommendationTopAPI(5),
     getRecommendationHistoryAPI(),
     getPendingRatingAPI(),
+    getAnnouncementListAPI().catch(() => ({data: [] as AnnouncementItem[]})),
   ])
   list.value = recRes.data || []
   ranking.value = rankRes.data || []
   recommendationHistory.value = historyRes.data || []
   pendingRatingList.value = pendingRes.data || []
+  const activeAnnouncements = sortAnnouncementsByTime(filterActiveAnnouncements(announcementRes.data || []))
+  announcementUnread.value = countUnreadAnnouncements(activeAnnouncements)
 
   // Keep current slide aligned with refreshed data while preserving swiper instance,
   // which avoids intermittent gesture interruption on mini-app clients.
@@ -442,6 +461,7 @@ const loadData = async () => {
       ranking.value = []
       recommendationHistory.value = []
       pendingRatingList.value = []
+      announcementUnread.value = 0
       return
     }
     await loadRecommendationData()
@@ -453,6 +473,10 @@ const loadData = async () => {
 const openRatingPage = () => {
   if (!pendingRatingList.value.length) return
   uni.switchTab({url: '/pages/flightRating/flightRating'})
+}
+
+const openAnnouncementCenter = () => {
+  uni.navigateTo({url: '/pages/announcement/announcement'})
 }
 
 const goSelect = (item: RecommendationDish) => {
@@ -596,6 +620,50 @@ onShow(() => {
   margin-top: 22rpx;
   display: flex;
   gap: 12rpx;
+}
+
+.notice-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(130deg, #eef8ff 0%, #fff 52%, #fff4e2 100%);
+}
+
+.notice-title {
+  color: #1f3f5b;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.notice-desc {
+  margin-top: 8rpx;
+  color: #67819a;
+  font-size: 24rpx;
+}
+
+.notice-right {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.notice-link {
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  color: #fff;
+  font-size: 24rpx;
+  background: linear-gradient(135deg, #0d84cc 0%, #2db8e0 100%);
+}
+
+.notice-badge {
+  min-width: 44rpx;
+  height: 44rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 22rpx;
+  background: linear-gradient(135deg, #ff7e5f 0%, #f45143 100%);
 }
 
 .metric {

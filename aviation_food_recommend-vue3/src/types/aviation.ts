@@ -86,6 +86,8 @@ export interface FlightPassengerItem {
   age?: number
   phone?: string
   gender?: string
+  cabinType?: number
+  cabinTypeLabel?: string
   preferenceCompleted: number
   bindStatus: string
   mealSelected?: string
@@ -98,6 +100,7 @@ export interface FlightPassengerUpsertPayload {
   idNumber?: string
   phone?: string
   gender?: number
+  cabinType?: number
   preferenceCompleted?: number
 }
 
@@ -111,6 +114,7 @@ export interface FlightMealBindingItem {
   dishName: string
   dishStatus?: number
   dishSource: number
+  cabinType?: number
   sort: number
 }
 
@@ -119,6 +123,7 @@ export interface FlightMealBindingUpsertPayload {
   flightNumber: string
   dishId: number
   dishSource?: number
+  cabinType?: number
   sort?: number
 }
 

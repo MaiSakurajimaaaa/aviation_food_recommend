@@ -25,6 +25,14 @@
       <button class="panel-btn" @click="openRatingPage(true)">立即评分</button>
     </view>
 
+    <view class="card notice-panel" @click="goAnnouncementCenter">
+      <view>
+        <view class="panel-title">公告中心</view>
+        <view class="panel-desc">{{ announcementUnread ? `你有 ${formatUnreadCount(announcementUnread)} 条未读公告` : '暂无未读公告，点击查看历史通知' }}</view>
+      </view>
+      <button class="panel-btn notice-btn">查看公告{{ announcementUnread ? `（${formatUnreadCount(announcementUnread)}）` : '' }}</button>
+    </view>
+
     <view class="card">
       <view class="title">航班与预选</view>
       <view class="row"><text class="label">当前航班：</text><text>{{ currentFlightText }}</text></view>
@@ -69,10 +77,12 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getCurrentFlightAPI } from '@/api/flight'
 import { getPreferenceAPI } from '@/api/preference'
-import { getPendingRatingAPI, getRecommendationHistoryAPI } from '@/api/recommendation'
+import { getAnnouncementListAPI, getPendingRatingAPI, getRecommendationHistoryAPI } from '@/api/recommendation'
 import { getProfileTagsAPI, getUserInfoAPI } from '@/api/user'
 import { useAuthGuard } from '@/composables/useAuthGuard'
-import type { FlightInfo, PendingRatingInfo, UserPreference } from '@/types/aviation'
+import { countUnreadAnnouncements, filterActiveAnnouncements, sortAnnouncementsByTime } from '@/utils/announcement'
+import { mapMealTypeValues } from '@/utils/meal'
+import type { AnnouncementItem, FlightInfo, PendingRatingInfo, UserPreference } from '@/types/aviation'
 import type { ProfileDetail } from '@/types/user'
 
 const {userStore, ensureLogin} = useAuthGuard()
@@ -83,6 +93,7 @@ const preferenceLoaded = ref(false)
 const profileTags = ref<string[]>([])
 const recommendationHistory = ref<Record<string, unknown>[]>([])
 const pendingRatingList = ref<PendingRatingInfo[]>([])
+const announcementUnread = ref(0)
 const loading = ref(false)
 
 const currentFlightText = computed(() => {
@@ -158,6 +169,11 @@ const ratingStatusText = computed(() => {
   return '已完成或暂无待评分'
 })
 
+const formatUnreadCount = (count: number) => {
+  if (count > 99) return '99+'
+  return String(count)
+}
+
 const openRatingPage = (force = false) => {
   if (!force) return
   if (!pendingRatingList.value.length) return
@@ -181,23 +197,23 @@ const formatPreferenceArray = (raw?: string) => {
 }
 
 const formatMealTypePreference = (raw?: string) => {
-  const map: Record<string, string> = {'1': '儿童餐', '2': '标准餐', '3': '清真餐', '4': '素食餐'}
   const values = parseArray(raw)
   if (!values.length) return '-'
-  return values.map((item) => map[item] || item).join('、')
+  return mapMealTypeValues(values).join('、')
 }
 
 const loadData = async () => {
   if (!ensureLogin()) return
   loading.value = true
   try {
-    const [userRes, flightRes, preferenceRes, tagsRes, historyRes, pendingRes] = await Promise.all([
+    const [userRes, flightRes, preferenceRes, tagsRes, historyRes, pendingRes, announcementRes] = await Promise.all([
       getUserInfoAPI(userStore.profile!.id),
       getCurrentFlightAPI(),
       getPreferenceAPI(),
       getProfileTagsAPI(),
       getRecommendationHistoryAPI(),
       getPendingRatingAPI(),
+      getAnnouncementListAPI().catch(() => ({data: [] as AnnouncementItem[]})),
     ])
     user.value = userRes.data || {id: 0, openid: ''}
     currentFlight.value = flightRes.data || null
@@ -206,6 +222,8 @@ const loadData = async () => {
     profileTags.value = tagsRes.data || []
     recommendationHistory.value = historyRes.data || []
     pendingRatingList.value = pendingRes.data || []
+    const activeAnnouncements = sortAnnouncementsByTime(filterActiveAnnouncements(announcementRes.data || []))
+    announcementUnread.value = countUnreadAnnouncements(activeAnnouncements)
     openRatingPage(false)
   } finally {
     loading.value = false
@@ -218,6 +236,10 @@ const goPreferences = () => {
 
 const goUpdate = () => {
   uni.navigateTo({url: '/pages/updateMy/updateMy'})
+}
+
+const goAnnouncementCenter = () => {
+  uni.navigateTo({url: '/pages/announcement/announcement'})
 }
 
 const logout = () => {
@@ -345,6 +367,13 @@ onShow(() => {
   background: linear-gradient(130deg, #fff3dc 0%, #fff 48%, #ecf8ff 100%);
 }
 
+.notice-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(130deg, #eef8ff 0%, #fff 46%, #fff5e6 100%);
+}
+
 .panel-title {
   color: #1e3a56;
   font-size: 30rpx;
@@ -365,6 +394,13 @@ onShow(() => {
   background: linear-gradient(135deg, #ffa936 0%, #f18220 100%);
   color: #fff;
   font-size: 26rpx;
+}
+
+.panel-btn.notice-btn {
+  width: auto;
+  min-width: 180rpx;
+  padding: 0 20rpx;
+  background: linear-gradient(135deg, #0d83cc 0%, #2db8e0 100%);
 }
 
 .title {

@@ -16,4 +16,6 @@ public class FlightPassengerVO implements Serializable {
     private Integer preferenceCompleted;
     private String bindStatus;
     private String mealSelected;
+    private Integer cabinType;
+    private String cabinTypeLabel;
 }

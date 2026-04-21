@@ -1,5 +1,5 @@
 <script setup lang="ts" name="layout">
-import { RouterView, useRouter, useRoute } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserInfoStore } from '@/store'
 import { ref, reactive, computed } from 'vue'
@@ -7,7 +7,6 @@ import { fixPwdAPI } from '@/api/employee'
 import type { FormInstance, FormRules } from 'element-plus'
 import { isSuperAdmin } from '@/utils/authz'
 
-// ------ data ------
 const dialogFormVisible = ref(false)
 const formLabelWidth = '80px'
 const isCollapse = ref(false)
@@ -16,7 +15,7 @@ const menuList = [
   {
     title: '航空总览',
     path: '/dashboard',
-    icon: 'pieChart',
+    icon: 'PieChart',
   },
   {
     title: '航班运营中心',
@@ -56,7 +55,7 @@ const menuList = [
   {
     title: '管理人员',
     path: '/employee',
-    icon: 'setting',
+    icon: 'Setting',
   },
 ]
 
@@ -68,49 +67,49 @@ const form = reactive({
 const pwdRef = ref<FormInstance>()
 const status = ref(1)
 
-// 自定义校验规则: 两次密码是否一致
 const samePwd = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (value !== form.newPwd) {
-    // 如果验证失败，则调用 回调函数时，指定一个 Error 对象。
     callback(new Error('两次输入的密码不一致!'))
   } else {
-    // 如果验证成功，则直接调用 callback 回调函数即可。
     callback()
   }
 }
-const rules: FormRules = { // 表单的规则检验对象
+
+const rules: FormRules = {
   oldPwd: [
     { required: true, message: '请输入原密码', trigger: 'blur' },
     {
       pattern: /^[a-zA-Z0-9]{1,10}$/,
       message: '原密码必须是1-10的大小写字母数字',
-      trigger: 'blur'
-    }
+      trigger: 'blur',
+    },
   ],
   newPwd: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { pattern: /^\S{6,15}$/, message: '新密码必须是6-15的非空字符', trigger: 'blur' }
+    { pattern: /^\S{6,15}$/, message: '新密码必须是6-15的非空字符', trigger: 'blur' },
   ],
   rePwd: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
     { pattern: /^\S{6,15}$/, message: '新密码必须是6-15的非空字符', trigger: 'blur' },
-    { validator: samePwd, trigger: 'blur' }
-  ]
+    { validator: samePwd, trigger: 'blur' },
+  ],
 }
 
-// ------ method ------
 const router = useRouter()
 const userInfoStore = useUserInfoStore()
-const route = useRoute();
-// 根据当前路由的路径返回要激活的菜单项
-const getActiveAside = () => {
-  return route.path;
-};
+const route = useRoute()
+
+const getActiveAside = () => route.path
+
 const visibleMenuList = computed(() => {
   const currentAccount = userInfoStore.userInfo?.account
   return menuList.filter((item) => item.path !== '/employee' || isSuperAdmin(currentAccount))
 })
-// 关闭修改密码对话框
+
+const currentMenuTitle = computed(() => {
+  return visibleMenuList.value.find((item) => item.path === route.path)?.title || '模块页'
+})
+
 const cancelForm = () => {
   ElMessage({
     type: 'info',
@@ -118,43 +117,38 @@ const cancelForm = () => {
   })
   dialogFormVisible.value = false
 }
-// 修改密码
+
 const fixPwd = async () => {
   const valid = await pwdRef.value?.validate()
-  if (valid) {
-    const submitForm = {
-      oldPwd: form.oldPwd,
-      newPwd: form.newPwd,
-    }
-    const { data: res } = await fixPwdAPI(submitForm)
-    if (res.code != 0) return   // 密码错误信息会在相应拦截器中捕获并提示
-    ElMessage({
-      type: 'success',
-      message: '修改成功',
-    })
-    dialogFormVisible.value = false
-  } else {
+  if (!valid) {
     return false
   }
+  const submitForm = {
+    oldPwd: form.oldPwd,
+    newPwd: form.newPwd,
+  }
+  const { data: res } = await fixPwdAPI(submitForm)
+  if (res.code !== 0) {
+    return
+  }
+  ElMessage({
+    type: 'success',
+    message: '修改成功',
+  })
+  dialogFormVisible.value = false
 }
 
 const quitFn = () => {
-  // 为了让用户体验更好，来个确认提示框
-  ElMessageBox.confirm(
-    '走了，爱是会消失的吗?',
-    '退出登录',
-    {
-      confirmButtonText: 'OK',
-      cancelButtonText: 'Cancel',
-      type: 'warning',
-    }
-  )
+  ElMessageBox.confirm('确认退出管理端吗？', '退出登录', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  })
     .then(() => {
       ElMessage({
         type: 'success',
         message: '退出成功',
       })
-      // 清除用户信息，包括token
       userInfoStore.userInfo = null
       router.push('/login')
     })
@@ -188,49 +182,67 @@ const quitFn = () => {
         </div>
       </template>
     </el-dialog>
+
     <el-container>
       <el-header>
-        <div class="logo-text">航空旅客智能美食推荐系统</div>
-        <el-icon class="icon1" v-if="isCollapse">
-          <Expand @click.stop="isCollapse = !isCollapse" />
-        </el-icon>
-        <el-icon class="icon1" v-else>
-          <Fold @click.stop="isCollapse = !isCollapse" />
-        </el-icon>
-        <div class="status">{{ status == 1 ? '航空推荐模式' : "维护模式" }}</div>
-        <el-dropdown style="float: right">
-          <el-button type="primary">
-            {{ userInfoStore.userInfo ? userInfoStore.userInfo.account : '未登录' }}
-            <el-icon class="arrow-down-icon"><arrow-down /></el-icon>
+        <div class="header-left">
+          <div class="logo-text">航空旅客智能美食推荐系统</div>
+          <el-button class="collapse-trigger" circle @click="isCollapse = !isCollapse">
+            <el-icon>
+              <Expand v-if="isCollapse" />
+              <Fold v-else />
+            </el-icon>
           </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item @click="dialogFormVisible = true">修改密码</el-dropdown-item>
-              <el-dropdown-item @click="quitFn">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+          <div class="status">{{ status === 1 ? '航空推荐模式' : '维护模式' }}</div>
+        </div>
+
+        <div class="header-right">
+          <el-dropdown>
+            <el-button type="primary" class="account-btn">
+              {{ userInfoStore.userInfo ? userInfoStore.userInfo.account : '未登录' }}
+              <el-icon class="arrow-down-icon"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="dialogFormVisible = true">修改密码</el-dropdown-item>
+                <el-dropdown-item @click="quitFn">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </el-header>
+
       <el-container class="box1">
-        <!-- 左侧导航菜单区域 -->
-        <el-menu :width="isCollapse ? '640px' : '200px'" :default-active="getActiveAside()" :collapse="isCollapse"
-          background-color="#22aaee" text-color="#fff" unique-opened router>
-          <!-- 加了router模式，就会在激活导航时以 :index 作为path进行路径跳转（nb!不用自己写路由了!） -->
-          <!-- 根据不同情况选择menu-item/submenu进行遍历，所以外层套template遍历，里面组件做判断看是否该次遍历到自己 -->
-          <template v-for="item in visibleMenuList" :key="item.path">
-            <el-menu-item :index="item.path">
-              <el-icon>
-                <component :is="item.icon" />
-              </el-icon>
-              <span>{{ item.title }}</span>
-            </el-menu-item>
-          </template>
-        </el-menu>
+        <aside class="aside-wrap" :class="{ collapsed: isCollapse }">
+          <el-menu :default-active="getActiveAside()" :collapse="isCollapse" unique-opened router class="nav-menu">
+            <template v-for="item in visibleMenuList" :key="item.path">
+              <el-menu-item :index="item.path">
+                <el-icon>
+                  <component :is="item.icon" />
+                </el-icon>
+                <span>{{ item.title }}</span>
+              </el-menu-item>
+            </template>
+          </el-menu>
+        </aside>
 
         <el-container class="mycontainer">
           <el-main>
-            <router-view></router-view>
+            <div class="content-shell">
+              <div class="content-top">
+                <el-breadcrumb separator="/">
+                  <el-breadcrumb-item>管理控制台</el-breadcrumb-item>
+                  <el-breadcrumb-item>{{ currentMenuTitle }}</el-breadcrumb-item>
+                </el-breadcrumb>
+                <el-tag effect="light" type="info">当前模块：{{ currentMenuTitle }}</el-tag>
+              </div>
+
+              <div class="content-body">
+                <router-view />
+              </div>
+            </div>
           </el-main>
+
           <el-footer>© 2026 航空旅客智能美食推荐系统 · Graduation Project</el-footer>
         </el-container>
       </el-container>
@@ -240,157 +252,174 @@ const quitFn = () => {
 
 <style lang="less" scoped>
 .common-layout {
-  height: 100%;
-  background-color: #eee;
+  min-height: 100%;
 }
 
 .el-header {
-  background-color: #00aaff;
-  color: #ffffff;
-  line-height: 60px;
-
-  .logo-text {
-    display: inline-block;
-    margin: 0 20px;
-    font-size: 18px;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: 1px;
-  }
-
-  .icon1 {
-    position: absolute;
-    top: 18px;
-    margin: 5px 10px 0 0;
-  }
-
-  .status {
-    display: inline-block;
-    align-items: center;
-    vertical-align: top;
-    line-height: 30px;
-    margin: 15px 50px;
-    padding: 0 10px;
-    border-radius: 5px;
-    background-color: #eebb00;
-    color: #fff;
-  }
-}
-
-.user {
-  float: right;
-  margin-right: 20px;
-}
-
-.el-dropdown .el-button {
-  float: right;
-  width: 80px;
-  margin: 14px 20px;
-  background-color: #eebb00;
-  border-color: #eebb00;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 18px;
   color: #fff;
+  background: linear-gradient(135deg, #0a77c5 0%, #1399d3 52%, #2db6df 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.26);
+  box-shadow: 0 10px 26px rgba(14, 78, 128, 0.25);
+}
 
-  .arrow-down-icon {
-    margin-left: 5px;
-  }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 360px;
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+
+.collapse-trigger {
+  border: none;
+  color: #0a6ea6;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 192, 76, 0.92);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.header-right {
+  min-width: 130px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.account-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+}
+
+.arrow-down-icon {
+  margin-left: 6px;
 }
 
 .box1 {
   display: flex;
-  height: 92vh;
+  min-height: calc(100vh - 64px);
+}
+
+.aside-wrap {
+  width: 220px;
+  transition: width 180ms ease;
+  background: linear-gradient(185deg, #0f2a47 0%, #153b63 100%);
+  border-right: 1px solid #22517d;
+}
+
+.aside-wrap.collapsed {
+  width: 72px;
+}
+
+.nav-menu {
+  border-right: none;
+  background: transparent;
+}
+
+.nav-menu :deep(.el-menu) {
+  border-right: none;
+  background: transparent;
+  padding-top: 16px;
+}
+
+.nav-menu :deep(.el-menu-item) {
+  margin: 8px 10px;
+  border-radius: 12px;
+  color: #d9ecff;
+}
+
+.nav-menu :deep(.el-menu-item:hover) {
+  background: rgba(75, 162, 226, 0.22);
+}
+
+.nav-menu :deep(.el-menu-item.is-active) {
+  background: linear-gradient(135deg, #0f8fdd 0%, #42bbe7 100%);
+  color: #fff;
 }
 
 .mycontainer {
+  flex: 1;
   display: flex;
-  flex: 6;
+  min-width: 0;
   flex-direction: column;
 }
 
 .el-main {
+  padding: 0;
+  background: transparent;
+}
+
+.content-shell {
+  height: 100%;
+  min-height: calc(100vh - 64px - 44px);
+  display: flex;
+  padding: 14px 18px 18px;
+  flex-direction: column;
+}
+
+.content-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #dbe8f5;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.content-body {
   flex: 1;
-  background-color: #e9f5ff;
-  color: #333;
-  /* text-align: center; */
-  /* line-height: 80px; */
-}
-
-a {
-  display: block;
-  height: 4rem;
-  color: #334455;
-  font-size: 20px;
-  font-weight: bold;
-  text-decoration: none;
-}
-
-a:hover {
-  background-color: #445566;
-  color: #eee;
+  min-height: 0;
+  margin-top: 12px;
+  overflow: auto;
 }
 
 .el-footer {
-  background-color: #eee;
+  height: 44px;
   font-size: 12px;
+  color: #6d8094;
+  border-top: 1px solid #deebf6;
+  background: rgba(255, 255, 255, 0.76);
   display: flex;
-  justify-content: center;
   align-items: center;
-}
-</style>
-
-
-
-<style lang="less">
-.el-dialog {
-  border-radius: 2%;
+  justify-content: center;
 }
 
-.el-dialog__header {
-  height: 60px;
-  line-height: 60px;
-  padding: 0 30px;
-  font-weight: bold;
-}
-
-.el-dialog__body {
-  padding: 10px 30px 30px;
-}
-
-.el-badge__content.is-fixed {
-  top: 24px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
-  font-size: 10px;
-  line-height: 16px;
-  font-size: 10px;
-  border-radius: 50%;
-  padding: 0;
-}
-
-.badgeW {
-  .el-badge__content.is-fixed {
-    width: 30px;
-    border-radius: 20px;
+@media (max-width: 1280px) {
+  .logo-text {
+    font-size: 16px;
   }
 }
 
-.el-menu {
-  padding: 30px 0 0 0;
-  background-color: #445566;
-}
+@media (max-width: 980px) {
+  .status {
+    display: none;
+  }
 
-.el-menu-item {
-  margin: 10px;
-  padding-right: 30px;
-  border-radius: 10px;
-}
-
-.el-menu-item.is-active {
-  background-color: #22ccff;
-  color: #fff;
-}
-
-.el-menu--collapse {
-  width: 85px;
+  .header-left {
+    min-width: 240px;
+  }
 }
 </style>

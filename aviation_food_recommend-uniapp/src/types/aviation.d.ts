@@ -35,6 +35,17 @@ export interface RecommendationTopItem {
   selectCount: number
 }
 
+export interface AnnouncementItem {
+  id: number
+  flightId?: number
+  title: string
+  content: string
+  status?: number
+  createUser?: number
+  createTime?: string
+  updateTime?: string
+}
+
 export interface MealSelectResult {
   flightId: number
   dishId: number

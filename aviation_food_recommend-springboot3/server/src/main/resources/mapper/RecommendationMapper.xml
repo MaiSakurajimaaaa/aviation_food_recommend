@@ -10,12 +10,11 @@
                d.detail,
                d.meal_type,
                d.flavor_tags,
-               frd.departure as route_departure,
-               frd.destination as route_destination,
-             0 as score,
-             0 as fallback_level
+               (select departure from flight_info where id = #{flightId}) as route_departure,
+               (select destination from flight_info where id = #{flightId}) as route_destination,
+               0 as score,
+               0 as fallback_level
         from dish d
-        left join flight_route_dish frd on d.id = frd.dish_id
         <where>
             d.status = 1
             and ifnull(d.stock, 0) &gt; 0
@@ -26,11 +25,28 @@
                 and d.flavor_tags like concat('%', #{flavor}, '%')
             </if>
             <if test="flightId != null">
-                and frd.id in (
-                    select id from flight_route_dish
-                    where dish_id = d.id
-                      and departure = (select departure from flight_info where id = #{flightId})
-                      and destination = (select destination from flight_info where id = #{flightId})
+                                and exists (
+                                        select 1 from flight_route_dish frd
+                                        where frd.dish_id = d.id
+                                            and frd.departure = (select departure from flight_info where id = #{flightId})
+                                            and frd.destination = (select destination from flight_info where id = #{flightId})
+                                            <choose>
+                                                <when test="cabinTypes != null and cabinTypes.size() > 0">
+                                                    and (case
+                                                             when ifnull(frd.cabin_type, 3) = 0 then 3
+                                                             else ifnull(frd.cabin_type, 3)
+                                                        end) in
+                                                    <foreach collection="cabinTypes" item="cabinType" open="(" separator="," close=")">
+                                                        #{cabinType}
+                                                    </foreach>
+                                                </when>
+                                                <otherwise>
+                                                    and (case
+                                                             when ifnull(frd.cabin_type, 3) = 0 then 3
+                                                             else ifnull(frd.cabin_type, 3)
+                                                        end) = 3
+                                                </otherwise>
+                                            </choose>
                 )
             </if>
         </where>
@@ -307,6 +323,7 @@
         select u.id as userId,
                u.name,
                u.current_flight_id as flightId,
+             u.cabin_type as cabinType,
                u.preference_completed as preferenceCompleted
         from user u
         where u.current_flight_id = #{flightId}
@@ -347,11 +364,31 @@
                  from user_preference up
                  where up.user_id = #{userId}
                  union all
-                 select case when up.meal_type_preferences like '%1%' then '儿童餐需求' end as tag
+                 select case
+                            when json_valid(up.meal_type_preferences) = 1 and json_contains(up.meal_type_preferences, json_quote('1')) then '儿童餐需求'
+                            when json_valid(up.meal_type_preferences) = 0 and up.meal_type_preferences like '%1%' then '儿童餐需求'
+                        end as tag
                  from user_preference up
                  where up.user_id = #{userId}
                  union all
-                 select case when up.meal_type_preferences like '%3%' then '清真餐需求' end as tag
+                 select case
+                            when json_valid(up.meal_type_preferences) = 1 and json_contains(up.meal_type_preferences, json_quote('2')) then '标准餐偏好'
+                            when json_valid(up.meal_type_preferences) = 0 and up.meal_type_preferences like '%2%' then '标准餐偏好'
+                        end as tag
+                 from user_preference up
+                 where up.user_id = #{userId}
+                 union all
+                 select case
+                            when json_valid(up.meal_type_preferences) = 1 and json_contains(up.meal_type_preferences, json_quote('3')) then '清真餐需求'
+                            when json_valid(up.meal_type_preferences) = 0 and up.meal_type_preferences like '%3%' then '清真餐需求'
+                        end as tag
+                 from user_preference up
+                 where up.user_id = #{userId}
+                 union all
+                 select case
+                            when json_valid(up.meal_type_preferences) = 1 and json_contains(up.meal_type_preferences, json_quote('4')) then '素食餐偏好'
+                            when json_valid(up.meal_type_preferences) = 0 and up.meal_type_preferences like '%4%' then '素食餐偏好'
+                        end as tag
                  from user_preference up
                  where up.user_id = #{userId}
                  union all

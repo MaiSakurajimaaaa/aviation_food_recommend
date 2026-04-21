@@ -40,6 +40,7 @@ const passengerForm = ref({
   idNumber: '',
   phone: '',
   gender: 1,
+  cabinType: 3,
 })
 const flightsPage = ref(1)
 const flightsPageSize = ref(10)
@@ -50,6 +51,34 @@ const FLIGHT_NUMBER_REGEX = /^[A-Za-z0-9-]+$/
 const HAS_ALNUM_REGEX = /[A-Za-z0-9]/
 const PHONE_REGEX = /^1\d{10}$/
 const ID_NUMBER_REGEX = /^(\d{17}[\dXx])$/
+
+const isValidIdNumber = (idNumber: string) => {
+  const normalized = idNumber.trim().toUpperCase()
+  if (!ID_NUMBER_REGEX.test(normalized)) {
+    return false
+  }
+  const birthdayText = normalized.slice(6, 14)
+  const year = Number(birthdayText.slice(0, 4))
+  const month = Number(birthdayText.slice(4, 6))
+  const day = Number(birthdayText.slice(6, 8))
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false
+  }
+  const birthdayDate = new Date(year, month - 1, day)
+  if (
+    birthdayDate.getFullYear() !== year
+    || birthdayDate.getMonth() !== month - 1
+    || birthdayDate.getDate() !== day
+  ) {
+    return false
+  }
+  const today = new Date()
+  const minYear = today.getFullYear() - 130
+  if (year < minYear || birthdayDate > today) {
+    return false
+  }
+  return true
+}
 
 const validatePlace = (value: string, fieldName: '出发地' | '目的地', required = false) => {
   const trimmed = value.trim()
@@ -146,6 +175,7 @@ const openAddPassengerDialog = () => {
     idNumber: '',
     phone: '',
     gender: 1,
+    cabinType: 3,
   }
   passengerDialogVisible.value = true
 }
@@ -157,6 +187,7 @@ const openEditPassengerDialog = (row: FlightPassengerItem) => {
     idNumber: row.idNumber || '',
     phone: row.phone || '',
     gender: row.gender === '女' ? 0 : 1,
+    cabinType: row.cabinType || 3,
   }
   passengerDialogVisible.value = true
 }
@@ -171,7 +202,7 @@ const savePassenger = async () => {
     return
   }
   const idNumber = passengerForm.value.idNumber?.trim()
-  if (idNumber && !ID_NUMBER_REGEX.test(idNumber)) {
+  if (idNumber && !isValidIdNumber(idNumber)) {
     ElMessage.warning('身份证号格式不正确')
     return
   }
@@ -180,12 +211,17 @@ const savePassenger = async () => {
     ElMessage.warning('手机号格式不正确')
     return
   }
+  if (![1, 2, 3].includes(passengerForm.value.cabinType)) {
+    ElMessage.warning('舱型必须为头等舱/商务舱/经济舱')
+    return
+  }
   const payload: FlightPassengerUpsertPayload = {
     flightId: selectedFlight.value.id,
     name: passengerForm.value.name.trim(),
-    idNumber: passengerForm.value.idNumber?.trim() || undefined,
+    idNumber: idNumber ? idNumber.toUpperCase() : undefined,
     phone: passengerForm.value.phone?.trim() || undefined,
     gender: passengerForm.value.gender,
+    cabinType: passengerForm.value.cabinType,
   }
   if (editingPassengerId.value) {
     const { data: res } = await updateFlightPassengerAPI({ ...payload, id: editingPassengerId.value })
@@ -371,6 +407,11 @@ onMounted(async () => {
         <el-table-column prop="age" label="年龄" width="80" />
         <el-table-column prop="phone" label="手机号" min-width="130" />
         <el-table-column prop="gender" label="性别" width="80" />
+        <el-table-column label="舱型" width="110">
+          <template #default="scope">
+            {{ scope.row.cabinTypeLabel || (scope.row.cabinType === 1 ? '头等舱' : scope.row.cabinType === 2 ? '商务舱' : '经济舱') }}
+          </template>
+        </el-table-column>
         <el-table-column label="偏好完成" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.preferenceCompleted === 1 ? 'success' : 'warning'">
@@ -423,6 +464,13 @@ onMounted(async () => {
             <el-radio :value="1">男</el-radio>
             <el-radio :value="0">女</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="舱型" required>
+          <el-select v-model="passengerForm.cabinType" style="width: 100%">
+            <el-option :value="1" label="头等舱" />
+            <el-option :value="2" label="商务舱" />
+            <el-option :value="3" label="经济舱" />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
