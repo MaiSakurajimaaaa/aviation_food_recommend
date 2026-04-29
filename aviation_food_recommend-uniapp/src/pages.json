@@ -23,12 +23,6 @@
 			}
 		},
 		{
-			"path": "pages/announcement/announcement",
-			"style": {
-				"navigationBarTitleText": "公告中心"
-			}
-		},
-		{
 			"path": "pages/my/my",
 			"style": {
 				"navigationBarTitleText": "我的"

@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -235,6 +236,68 @@ class RecommendationControllerTest {
                 assertEquals(scoreWithoutRoute, scoreWithRoute);
         }
 
+        @Test
+        void calculatePmfupScore_shouldIgnoreTimeAndAssociationSignals() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+                Constructor<?> ctor = contextClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object context = ctor.newInstance();
+
+                @SuppressWarnings("unchecked")
+                Map<Integer, Map<Integer, Double>> userDishScore =
+                        (Map<Integer, Map<Integer, Double>>) ReflectionTestUtils.getField(context, "userDishScore");
+
+                Map<Integer, Double> profile = new HashMap<>();
+                profile.put(9, 10.0);
+                userDishScore.put(7, profile);
+
+                Method method = RecommendationController.class.getDeclaredMethod(
+                        "calculatePmfupScore",
+                        RecommendationDishVO.class,
+                        Integer.class,
+                        java.util.Set.class,
+                        Integer.class,
+                        contextClass,
+                        Integer.class,
+                        LocalDateTime.class,
+                        Integer.class
+                );
+                method.setAccessible(true);
+
+                RecommendationDishVO dish = new RecommendationDishVO();
+                dish.setDishId(11);
+                dish.setDishName("清汤面");
+                dish.setMealType(1);
+                dish.setFlavorTags("清淡");
+
+                Double earlyScore = (Double) method.invoke(
+                        controller,
+                        dish,
+                        1,
+                        Collections.singleton("清淡"),
+                        100,
+                        context,
+                        7,
+                        LocalDateTime.of(2026, 3, 18, 7, 0),
+                        1
+                );
+                Double lateScore = (Double) method.invoke(
+                        controller,
+                        dish,
+                        1,
+                        Collections.singleton("清淡"),
+                        100,
+                        context,
+                        7,
+                        LocalDateTime.of(2026, 3, 18, 20, 0),
+                        1
+                );
+
+                assertEquals(earlyScore, lateScore);
+        }
+
             @Test
             void calculateTimePreferenceScore_shouldPreferBreakfastWhenEarly() throws Exception {
                 RecommendationController controller = new RecommendationController();
@@ -291,14 +354,10 @@ class RecommendationControllerTest {
                 @SuppressWarnings("unchecked")
                 Map<Integer, Map<Integer, Double>> userDishScore =
                         (Map<Integer, Map<Integer, Double>>) ReflectionTestUtils.getField(context, "userDishScore");
-                @SuppressWarnings("unchecked")
-                Map<String, Double> pairAssociation =
-                        (Map<String, Double>) ReflectionTestUtils.getField(context, "pairAssociation");
 
                 Map<Integer, Double> selfVector = new HashMap<>();
                 selfVector.put(9, 6.0);
                 userDishScore.put(7, selfVector);
-                pairAssociation.put("9:11", 1.0);
 
                 Method method = RecommendationController.class.getDeclaredMethod(
                         "calculateAmmbcScore",
@@ -312,6 +371,204 @@ class RecommendationControllerTest {
 
                 assertEquals(0.0, score);
             }
+
+        @Test
+        void resolveFusionWeights_shouldPreferPmfupWhenBehaviorSignalsSparse() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+                Constructor<?> ctor = contextClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object context = ctor.newInstance();
+
+                @SuppressWarnings("unchecked")
+                Map<Integer, Integer> signalMap = (Map<Integer, Integer>) ReflectionTestUtils.getField(context, "userBehaviorSignal");
+                signalMap.put(7, 1);
+
+                Method method = RecommendationController.class.getDeclaredMethod("resolveFusionWeights", Integer.class, contextClass);
+                method.setAccessible(true);
+
+                double[] weights = (double[]) method.invoke(controller, 7, context);
+
+                assertEquals(1.0, weights[0] + weights[1] + weights[2], 1e-6);
+                assertTrue(weights[0] > weights[1]);
+                assertTrue(weights[1] > weights[2]);
+        }
+
+        @Test
+        void resolveFusionWeights_shouldKeepDefaultWhenBehaviorSignalsRich() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+                Constructor<?> ctor = contextClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object context = ctor.newInstance();
+
+                @SuppressWarnings("unchecked")
+                Map<Integer, Integer> signalMap = (Map<Integer, Integer>) ReflectionTestUtils.getField(context, "userBehaviorSignal");
+                signalMap.put(7, 10);
+
+                Method method = RecommendationController.class.getDeclaredMethod("resolveFusionWeights", Integer.class, contextClass);
+                method.setAccessible(true);
+
+                double[] weights = (double[]) method.invoke(controller, 7, context);
+
+                assertEquals(1.0, weights[0] + weights[1] + weights[2], 1e-6);
+                assertTrue(weights[2] >= weights[1]);
+                assertTrue(weights[2] > 0.25);
+        }
+
+        @Test
+        void resolveFusionWeights_shouldChangeSmoothlyWithSignalGrowth() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+                Constructor<?> ctor = contextClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object context = ctor.newInstance();
+
+                @SuppressWarnings("unchecked")
+                Map<Integer, Integer> signalMap = (Map<Integer, Integer>) ReflectionTestUtils.getField(context, "userBehaviorSignal");
+                Method method = RecommendationController.class.getDeclaredMethod("resolveFusionWeights", Integer.class, contextClass);
+                method.setAccessible(true);
+
+                signalMap.put(7, 3);
+                double[] weightsAtThree = (double[]) method.invoke(controller, 7, context);
+
+                signalMap.put(7, 4);
+                double[] weightsAtFour = (double[]) method.invoke(controller, 7, context);
+
+                assertTrue(Math.abs(weightsAtThree[0] - weightsAtFour[0]) > 1e-6);
+                assertTrue(Math.abs(weightsAtThree[1] - weightsAtFour[1]) > 1e-6);
+                assertTrue(Math.abs(weightsAtThree[2] - weightsAtFour[2]) > 1e-6);
+        }
+
+        @Test
+        void buildInteractionContext_shouldKeepSignalsForNonCandidateDishes() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+
+                Method buildMethod = RecommendationController.class.getDeclaredMethod(
+                        "buildInteractionContext",
+                        List.class,
+                        Map.class,
+                        Map.class
+                );
+                buildMethod.setAccessible(true);
+
+                List<Map<String, Object>> logs = new ArrayList<>();
+                Map<String, Object> row = new HashMap<>();
+                row.put("userId", 7);
+                row.put("recommendedDishes", "[999]");
+                row.put("userFeedback", "MANUAL_SELECTED:dishId=999:mealOrder=1");
+                row.put("createTime", LocalDateTime.now().minusDays(2));
+                logs.add(row);
+
+                Map<Integer, RecommendationDishVO> candidateMap = new HashMap<>();
+                RecommendationDishVO candidateDish = new RecommendationDishVO();
+                candidateDish.setDishId(11);
+                candidateDish.setFlavorTags("清淡");
+                candidateMap.put(11, candidateDish);
+
+                Object context = buildMethod.invoke(controller, logs, candidateMap, new HashMap<String, Integer>());
+
+                @SuppressWarnings("unchecked")
+                Map<Integer, Map<Integer, Double>> userDishScore =
+                        (Map<Integer, Map<Integer, Double>>) ReflectionTestUtils.getField(context, "userDishScore");
+
+                assertTrue(userDishScore.containsKey(7));
+                assertTrue(userDishScore.get(7).containsKey(999));
+        }
+
+        @Test
+        void buildInteractionContext_shouldCountBehaviorSignalOncePerLog() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+
+                Method buildMethod = RecommendationController.class.getDeclaredMethod(
+                        "buildInteractionContext",
+                        List.class,
+                        Map.class,
+                        Map.class
+                );
+                buildMethod.setAccessible(true);
+
+                Method signalMethod = RecommendationController.class.getDeclaredMethod(
+                        "resolveBehaviorSignalCount",
+                        Integer.class,
+                        contextClass
+                );
+                signalMethod.setAccessible(true);
+
+                List<Map<String, Object>> logs = new ArrayList<>();
+                Map<String, Object> row = new HashMap<>();
+                row.put("userId", 7);
+                row.put("recommendedDishes", "[11]");
+                row.put("userFeedback", "MANUAL_SELECTED:dishId=11:mealOrder=1");
+                row.put("userRating", 5);
+                row.put("createTime", LocalDateTime.now().minusDays(1));
+                logs.add(row);
+
+                Map<Integer, RecommendationDishVO> candidateMap = new HashMap<>();
+                RecommendationDishVO candidateDish = new RecommendationDishVO();
+                candidateDish.setDishId(11);
+                candidateDish.setFlavorTags("微辣");
+                candidateMap.put(11, candidateDish);
+
+                Object context = buildMethod.invoke(controller, logs, candidateMap, new HashMap<String, Integer>());
+
+                int signalCount = (int) signalMethod.invoke(controller, 7, context);
+                assertEquals(1, signalCount);
+        }
+
+        @Test
+        void calculatePrmidmScore_shouldPreferRecentFlavorDriftMatch() throws Exception {
+                RecommendationController controller = new RecommendationController();
+
+                Class<?> contextClass = Class.forName("fun.hykgraph.controller.user.RecommendationController$InteractionContext");
+                Constructor<?> ctor = contextClass.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                Object context = ctor.newInstance();
+
+                @SuppressWarnings("unchecked")
+                Map<Integer, Set<String>> dishFlavorTags =
+                        (Map<Integer, Set<String>>) ReflectionTestUtils.getField(context, "dishFlavorTags");
+                @SuppressWarnings("unchecked")
+                Map<Integer, Map<String, Double>> userRecentFlavorScore =
+                        (Map<Integer, Map<String, Double>>) ReflectionTestUtils.getField(context, "userRecentFlavorScore");
+                @SuppressWarnings("unchecked")
+                Map<Integer, Map<String, Double>> userLongFlavorScore =
+                        (Map<Integer, Map<String, Double>>) ReflectionTestUtils.getField(context, "userLongFlavorScore");
+
+                dishFlavorTags.put(11, Collections.singleton("微辣"));
+
+                Map<String, Double> recent = new HashMap<>();
+                recent.put("微辣", 4.0);
+                userRecentFlavorScore.put(7, recent);
+
+                Map<String, Double> longTerm = new HashMap<>();
+                longTerm.put("微辣", 1.0);
+                userLongFlavorScore.put(7, longTerm);
+
+                Method method = RecommendationController.class.getDeclaredMethod(
+                        "calculatePrmidmScore",
+                        Integer.class,
+                        Integer.class,
+                        contextClass
+                );
+                method.setAccessible(true);
+
+                Double driftMatched = (Double) method.invoke(controller, 7, 11, context);
+
+                recent.put("微辣", 0.2);
+                longTerm.put("微辣", 2.4);
+
+                Double driftMismatched = (Double) method.invoke(controller, 7, 11, context);
+
+                assertTrue(driftMatched > driftMismatched);
+        }
 
                         @Test
                         void insertClickLog_shouldWriteClickFeedbackWithDishAndMealOrder() throws Exception {

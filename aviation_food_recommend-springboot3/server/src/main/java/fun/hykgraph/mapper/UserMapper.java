@@ -23,6 +23,9 @@ public interface UserMapper {
     @Select("select * from user where id = #{id}")
     User getById(Integer id);
 
+    @Select("select * from user where id_number = #{idNumber} order by id desc limit 1")
+    User getLatestByIdNumber(@Param("idNumber") String idNumber);
+
     @Update("update user set current_flight_id = #{flightId} where id = #{userId}")
     void bindFlight(@Param("userId") Integer userId, @Param("flightId") Integer flightId);
 
@@ -33,12 +36,32 @@ public interface UserMapper {
 
     List<FlightPassengerVO> listPassengersByFlightId(Integer flightId);
 
+    List<FlightPassengerVO> searchPassengers(@Param("flightNumber") String flightNumber,
+                                              @Param("name") String name,
+                                              @Param("idNumber") String idNumber);
+
     List<FlightInfo> listFlightsByIdNumber(String idNumber);
 
     void insertByAdmin(User user);
 
     @Delete("delete from user where id = #{id}")
     void deleteById(Integer id);
+
+    @Select("select count(1) from user where current_flight_id = #{flightId} and id_number = #{idNumber}")
+    Integer countByFlightIdAndIdNumber(@Param("flightId") Integer flightId,
+                                       @Param("idNumber") String idNumber);
+
+    @Select("select count(1) from user where current_flight_id = #{flightId} and id_number = #{idNumber} and id <> #{excludeId}")
+    Integer countByFlightIdAndIdNumberExcludeId(@Param("flightId") Integer flightId,
+                                                @Param("idNumber") String idNumber,
+                                                @Param("excludeId") Integer excludeId);
+
+    @Select("select count(1) from user where id_number = #{idNumber} and id <> #{excludeId}")
+    Integer countByIdNumberExcludeId(@Param("idNumber") String idNumber,
+                                     @Param("excludeId") Integer excludeId);
+
+    List<Map<String, Object>> searchAdminPassengerCandidates(@Param("keyword") String keyword,
+                                                             @Param("limit") Integer limit);
 
     Integer countByMap(Map map);
 }

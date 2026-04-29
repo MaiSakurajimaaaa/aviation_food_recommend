@@ -25,14 +25,6 @@
       <button class="panel-btn" @click="openRatingPage(true)">立即评分</button>
     </view>
 
-    <view class="card notice-panel" @click="goAnnouncementCenter">
-      <view>
-        <view class="panel-title">公告中心</view>
-        <view class="panel-desc">{{ announcementUnread ? `你有 ${formatUnreadCount(announcementUnread)} 条未读公告` : '暂无未读公告，点击查看历史通知' }}</view>
-      </view>
-      <button class="panel-btn notice-btn">查看公告{{ announcementUnread ? `（${formatUnreadCount(announcementUnread)}）` : '' }}</button>
-    </view>
-
     <view class="card">
       <view class="title">航班与预选</view>
       <view class="row"><text class="label">当前航班：</text><text>{{ currentFlightText }}</text></view>
@@ -77,12 +69,12 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getCurrentFlightAPI } from '@/api/flight'
 import { getPreferenceAPI } from '@/api/preference'
-import { getAnnouncementListAPI, getPendingRatingAPI, getRecommendationHistoryAPI } from '@/api/recommendation'
+import { getPendingRatingAPI, getRecommendationHistoryAPI } from '@/api/recommendation'
 import { getProfileTagsAPI, getUserInfoAPI } from '@/api/user'
 import { useAuthGuard } from '@/composables/useAuthGuard'
-import { countUnreadAnnouncements, filterActiveAnnouncements, sortAnnouncementsByTime } from '@/utils/announcement'
 import { mapMealTypeValues } from '@/utils/meal'
-import type { AnnouncementItem, FlightInfo, PendingRatingInfo, UserPreference } from '@/types/aviation'
+import { getFlightMealSelectionProgress } from '@/utils/mealSelection'
+import type { FlightInfo, PendingRatingInfo, UserPreference } from '@/types/aviation'
 import type { ProfileDetail } from '@/types/user'
 
 const {userStore, ensureLogin} = useAuthGuard()
@@ -93,7 +85,6 @@ const preferenceLoaded = ref(false)
 const profileTags = ref<string[]>([])
 const recommendationHistory = ref<Record<string, unknown>[]>([])
 const pendingRatingList = ref<PendingRatingInfo[]>([])
-const announcementUnread = ref(0)
 const loading = ref(false)
 
 const currentFlightText = computed(() => {
@@ -109,34 +100,32 @@ const profileTagsText = computed(() => {
 const isSelectionClosed = computed(() => {
   const deadline = currentFlight.value?.selectionDeadline
   if (!deadline) return false
-  const timestamp = new Date(String(deadline)).getTime()
+  const normalized = String(deadline).replace(' ', 'T')
+  const timestamp = new Date(normalized).getTime()
   if (Number.isNaN(timestamp)) return false
   return Date.now() > timestamp
 })
 
-const hasManualSelectionForCurrentFlight = computed(() => {
-  const flightId = currentFlight.value?.id
-  if (!flightId) return false
-  return recommendationHistory.value.some((item) => {
-    const row = item as Record<string, unknown>
-    const rowFlightIdRaw = row.flightId ?? row.flight_id
-    const rowFlightId = Number(rowFlightIdRaw)
-    if (Number.isNaN(rowFlightId) || rowFlightId !== flightId) return false
-    const feedback = String(row.userFeedback ?? row.user_feedback ?? '')
-    return feedback.startsWith('MANUAL_SELECTED')
+const selectionProgress = computed(() => {
+  return getFlightMealSelectionProgress({
+    history: recommendationHistory.value,
+    flightId: currentFlight.value?.id,
+    mealCount: currentFlight.value?.mealCount,
   })
 })
 
 const selectionPickByFlightText = computed(() => {
   const no = currentFlight.value?.flightNumber || '未绑定航班'
-  const status = hasManualSelectionForCurrentFlight.value ? '已选' : '未选'
-  return `${no}：${status}`
+  const progress = selectionProgress.value
+  return `${no}：${progress.completedCount}/${progress.totalMealCount} 餐`
 })
 
 const selectionEditableText = computed(() => {
   if (!currentFlight.value) return '不可'
   if (isSelectionClosed.value) return '不可'
-  return '可修改'
+  if (selectionProgress.value.isFullySelected) return '可改全部'
+  const remaining = selectionProgress.value.totalMealCount - selectionProgress.value.completedCount
+  return remaining > 0 ? `可继续（剩余${remaining}餐）` : '可修改'
 })
 
 const selectionDeadlineText = computed(() => {
@@ -147,32 +136,46 @@ const selectionDeadlineText = computed(() => {
 
 const selectionStatusTitle = computed(() => {
   if (!currentFlight.value) return '当前未绑定航班'
+  const progress = selectionProgress.value
+  const progressText = `${progress.completedCount}/${progress.totalMealCount} 餐`
+
   if (!isSelectionClosed.value) {
-    return hasManualSelectionForCurrentFlight.value ? '当前航班已完成预选' : '当前航班尚未预选'
+    if (progress.isFullySelected) return `当前航班已完成全部预选（${progressText}）`
+    if (progress.completedCount > 0) return `当前航班部分完成（${progressText}）`
+    return `当前航班尚未预选（${progressText}）`
   }
-  return hasManualSelectionForCurrentFlight.value ? '当前航班预选已锁定' : '当前航班未预选'
+
+  if (progress.isFullySelected) return `当前航班预选时间已截止（已预选 ${progressText}）`
+  if (progress.completedCount > 0) return `当前航班预选时间已截止（已预选 ${progressText}，剩余自动分配）`
+  return '当前航班预选时间已截止（未预选，系统自动分配）'
 })
 
 const selectionStatusNote = computed(() => {
   if (!currentFlight.value) return '建议先在航班页绑定主航班，再进入餐食预选。'
-  if (!isSelectionClosed.value && !hasManualSelectionForCurrentFlight.value) {
-    return '建议尽快完成预选，避免截止后转为系统自动分配。'
+  const progress = selectionProgress.value
+
+  if (!isSelectionClosed.value) {
+    if (progress.isFullySelected) {
+      return '全部餐次已完成，截止前可在“餐食预选”页按餐次改选。'
+    }
+    if (progress.completedCount > 0) {
+      const remaining = progress.totalMealCount - progress.completedCount
+      return `你还有 ${remaining} 餐未确认，建议尽快完成其余餐次。`
+    }
+    return '建议尽快开始预选，按餐次逐步确认，避免截止后转为系统自动分配。'
   }
-  if (!isSelectionClosed.value && hasManualSelectionForCurrentFlight.value) {
-    return '如需更换餐食，可在截止前前往“餐食预选”页再次确认。'
+
+  if (!progress.isFullySelected) {
+    return '预选时间已截止，未完成餐次将按系统规则自动分配。'
   }
-  return '如需评价本次服务，请在“评分”页完成航后反馈。'
+
+  return '预选时间已截止，已预选结果已锁定。如需评价本次服务，请在“评分”页完成航后反馈。'
 })
 
 const ratingStatusText = computed(() => {
   if (pendingRatingList.value.length) return `待评分（${pendingRatingList.value.length} 条）`
   return '已完成或暂无待评分'
 })
-
-const formatUnreadCount = (count: number) => {
-  if (count > 99) return '99+'
-  return String(count)
-}
 
 const openRatingPage = (force = false) => {
   if (!force) return
@@ -206,14 +209,13 @@ const loadData = async () => {
   if (!ensureLogin()) return
   loading.value = true
   try {
-    const [userRes, flightRes, preferenceRes, tagsRes, historyRes, pendingRes, announcementRes] = await Promise.all([
+    const [userRes, flightRes, preferenceRes, tagsRes, historyRes, pendingRes] = await Promise.all([
       getUserInfoAPI(userStore.profile!.id),
       getCurrentFlightAPI(),
       getPreferenceAPI(),
       getProfileTagsAPI(),
       getRecommendationHistoryAPI(),
       getPendingRatingAPI(),
-      getAnnouncementListAPI().catch(() => ({data: [] as AnnouncementItem[]})),
     ])
     user.value = userRes.data || {id: 0, openid: ''}
     currentFlight.value = flightRes.data || null
@@ -222,8 +224,6 @@ const loadData = async () => {
     profileTags.value = tagsRes.data || []
     recommendationHistory.value = historyRes.data || []
     pendingRatingList.value = pendingRes.data || []
-    const activeAnnouncements = sortAnnouncementsByTime(filterActiveAnnouncements(announcementRes.data || []))
-    announcementUnread.value = countUnreadAnnouncements(activeAnnouncements)
     openRatingPage(false)
   } finally {
     loading.value = false
@@ -236,10 +236,6 @@ const goPreferences = () => {
 
 const goUpdate = () => {
   uni.navigateTo({url: '/pages/updateMy/updateMy'})
-}
-
-const goAnnouncementCenter = () => {
-  uni.navigateTo({url: '/pages/announcement/announcement'})
 }
 
 const logout = () => {
@@ -367,13 +363,6 @@ onShow(() => {
   background: linear-gradient(130deg, #fff3dc 0%, #fff 48%, #ecf8ff 100%);
 }
 
-.notice-panel {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: linear-gradient(130deg, #eef8ff 0%, #fff 46%, #fff5e6 100%);
-}
-
 .panel-title {
   color: #1e3a56;
   font-size: 30rpx;
@@ -394,13 +383,6 @@ onShow(() => {
   background: linear-gradient(135deg, #ffa936 0%, #f18220 100%);
   color: #fff;
   font-size: 26rpx;
-}
-
-.panel-btn.notice-btn {
-  width: auto;
-  min-width: 180rpx;
-  padding: 0 20rpx;
-  background: linear-gradient(135deg, #0d83cc 0%, #2db8e0 100%);
 }
 
 .title {

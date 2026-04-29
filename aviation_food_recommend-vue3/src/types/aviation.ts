@@ -91,10 +91,16 @@ export interface FlightPassengerItem {
   preferenceCompleted: number
   bindStatus: string
   mealSelected?: string
+  flightId?: number
+  flightNumber?: string
+  departure?: string
+  destination?: string
 }
 
 export interface FlightPassengerUpsertPayload {
   id?: number
+  sourceType?: number
+  existingUserId?: number
   flightId: number
   name: string
   idNumber?: string
@@ -102,6 +108,18 @@ export interface FlightPassengerUpsertPayload {
   gender?: number
   cabinType?: number
   preferenceCompleted?: number
+}
+
+export interface ExistingPassengerCandidateItem {
+  userId: number
+  name: string
+  idNumber?: string
+  phone?: string
+  gender?: string
+  cabinType?: number
+  cabinTypeLabel?: string
+  preferenceCompleted?: number
+  currentFlightId?: number
 }
 
 export interface FlightMealBindingItem {
@@ -189,4 +207,20 @@ export interface UserMealSelectionQuery {
   flightNumber?: string
   name?: string
   idNumber?: string
+}
+
+export interface UserMealDemandItem {
+  dishName: string
+  demandCount: number
+}
+
+export interface UserMealStatistics {
+  flightNumber: string
+  totalOrders: number
+  selectedOrders: number
+  unselectedOrders: number
+  unrecordedOrders: number
+  totalDishDemand: number
+  distinctDishCount: number
+  dishDemandList: UserMealDemandItem[]
 }

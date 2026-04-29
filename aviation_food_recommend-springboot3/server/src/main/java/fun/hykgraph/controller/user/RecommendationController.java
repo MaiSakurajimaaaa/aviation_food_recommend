@@ -33,7 +33,11 @@ public class RecommendationController {
     private static final Set<Integer> ALLOWED_MEAL_TYPES = new HashSet<>(Arrays.asList(1, 2, 3, 4));
     private static final int MANUAL_SELECTION_CONFIRMED_STATUS = 3;
     private static final Set<String> ALLOWED_FLAVORS = new HashSet<>(Arrays.asList("清淡", "咸香", "微辣", "甜口", "低脂", "高蛋白"));
-    private static final String FUSED_ALGORITHM_TYPE = "fused-pmfup-prmidm-ammbc-v1";
+    private static final String FUSED_ALGORITHM_TYPE = "fused-pmfup-prmidm-ammbc-v3";
+    private static final double EXPOSURE_SCORE_WEIGHT = 0.15;
+    private static final int RECENT_WINDOW_DAYS = 30;
+    private static final int HISTORY_WINDOW_DAYS = 180;
+    private static final double CF_SHRINK_LAMBDA = 3.0;
     private static final String RATING_STATUS_PENDING = "PENDING";
     private static final long RATING_EXPIRE_DAYS = 7;
     private static final long RATING_DEFER_HOURS = 24;
@@ -63,7 +67,14 @@ public class RecommendationController {
         if (user == null || user.getCurrentFlightId() == null) {
             return Result.success(null);
         }
-        return Result.success(flightInfoMapper.getById(user.getCurrentFlightId()));
+        FlightInfo flightInfo = flightInfoMapper.getById(user.getCurrentFlightId());
+        if (flightInfo != null && flightInfo.getArrivalTime() != null
+                && flightInfo.getArrivalTime().isBefore(LocalDateTime.now())) {
+            // 航班已结束，解绑用户
+            userMapper.bindFlight(userId, null);
+            return Result.success(null);
+        }
+        return Result.success(flightInfo);
     }
 
     @PostMapping("/flight/bind")
@@ -92,7 +103,10 @@ public class RecommendationController {
         if (queryIdNumber == null || queryIdNumber.trim().isEmpty()) {
             return Result.success(new ArrayList<>());
         }
-        return Result.success(userMapper.listFlightsByIdNumber(queryIdNumber.trim()));
+        List<FlightInfo> flights = userMapper.listFlightsByIdNumber(queryIdNumber.trim());
+        LocalDateTime now = LocalDateTime.now();
+        flights.removeIf(f -> f.getArrivalTime() != null && f.getArrivalTime().isBefore(now));
+        return Result.success(flights);
     }
 
     @GetMapping("/preference")
@@ -155,9 +169,9 @@ public class RecommendationController {
             return Result.success(list);
         }
 
-        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(180);
+        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(180, 5000);
         UserPreference preference = userPreferenceMapper.getByUserId(userId);
-        Integer prefMealType = parsePreferenceMealType(preference == null ? null : preference.getMealTypePreferences());
+        Set<Integer> prefMealTypes = parsePreferenceMealTypes(preference == null ? null : preference.getMealTypePreferences());
         Set<String> prefFlavors = new HashSet<>(parseFlavorList(preference == null ? null : preference.getFlavorPreferences()));
 
         Map<Integer, RecommendationDishVO> candidateMap = list.stream()
@@ -168,19 +182,43 @@ public class RecommendationController {
                 .collect(Collectors.toMap(item -> item.getDishName().trim(), RecommendationDishVO::getDishId, (a, b) -> a));
 
         InteractionContext context = buildInteractionContext(recentLogs, candidateMap, dishNameIdMap);
+        double[] fusionWeights = resolveFusionWeights(userId, context);
+        int behaviorSignalCount = resolveBehaviorSignalCount(userId, context);
+        Integer prevDishId = null;
+        Integer prevMealType = null;
+        if (safeMealOrder > 1) {
+            Map<String, Object> prevSelection = recommendationMapper.latestManualSelection(userId, flightId, safeMealOrder - 1);
+            prevDishId = extractDishIdFromLatestSelection(prevSelection);
+            if (prevDishId != null) {
+                RecommendationDishVO prevDish = candidateMap.get(prevDishId);
+                if (prevDish != null) {
+                    prevMealType = prevDish.getMealType();
+                }
+            }
+        }
         int idx = 0;
         for (RecommendationDishVO item : list) {
-            double pmfupScore = calculatePmfupScore(item, prefMealType, prefFlavors, flightId, context, userId,
-                    flightInfo == null ? null : flightInfo.getDepartureTime(), safeMealOrder);
+            double pmfupScore = calculatePmfupScore(item, prefMealTypes, prefFlavors, flightId, context, userId,
+                    flightInfo == null ? null : flightInfo.getDepartureTime(), safeMealOrder,
+                    flightInfo == null ? null : flightInfo.getMealCount());
             double prmidmScore = calculatePrmidmScore(userId, item.getDishId(), context);
             double ammbcScore = calculateAmmbcScore(userId, item.getDishId(), context);
 
-            double fusedScore = 0.48 * pmfupScore + 0.34 * prmidmScore + 0.18 * ammbcScore;
+            double fusedScore = fusionWeights[0] * pmfupScore + fusionWeights[1] * prmidmScore + fusionWeights[2] * ammbcScore;
+            if (prevDishId != null) {
+                if (Objects.equals(item.getDishId(), prevDishId)) {
+                    fusedScore *= 0.70;
+                } else if (prevMealType != null && Objects.equals(item.getMealType(), prevMealType)) {
+                    fusedScore *= 0.85;
+                }
+            }
 
             List<String> reasons = new ArrayList<>();
-            if (pmfupScore >= 0.65) reasons.add("多源偏好融合");
-            if (prmidmScore >= 0.55) reasons.add("兴趣漂移感知");
-            if (ammbcScore >= 0.40) reasons.add("双向主动匹配");
+            if (pmfupScore >= 0.65) reasons.add("画像偏好匹配");
+            if (prmidmScore >= 0.55) reasons.add("近期口味漂移");
+            if (ammbcScore >= 0.40) reasons.add("协同过滤匹配");
+            if (behaviorSignalCount < 3) reasons.add("行为样本不足");
+            if (prevDishId != null && Objects.equals(item.getDishId(), prevDishId)) reasons.add("与前序餐食相同");
             if (reasons.isEmpty()) reasons.add("基础稳健推荐");
 
             item.setFallbackLevel(idx++);
@@ -449,6 +487,156 @@ public class RecommendationController {
         return Result.success(tags);
     }
 
+    @GetMapping("/recommendation/dishes/resolve")
+    public Result<Map<Integer, String>> resolveDishNames(@RequestParam String ids) {
+        List<Integer> dishIds = Arrays.stream(ids.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(Integer::parseInt)
+                .distinct()
+                .collect(Collectors.toList());
+        if (dishIds.isEmpty()) {
+            return Result.success(new HashMap<>());
+        }
+        List<Map<String, Object>> rows = recommendationMapper.resolveDishNames(dishIds);
+        Map<Integer, String> result = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Integer id = parseInt(row.get("id"));
+            String name = row.get("name") == null ? null : String.valueOf(row.get("name"));
+            if (id != null) {
+                result.put(id, name != null ? name : ("餐食#" + id));
+            }
+        }
+        return Result.success(result);
+    }
+
+    @GetMapping("/recommendation/rating-history")
+    public Result<List<Map<String, Object>>> ratingHistory() {
+        Integer userId = BaseContext.getCurrentId();
+        return Result.success(recommendationMapper.listRatingHistory(userId));
+    }
+
+    @GetMapping("/recommendation/history/{logId}")
+    public Result<Map<String, Object>> historyDetail(@PathVariable Long logId) {
+        Integer userId = BaseContext.getCurrentId();
+        Map<String, Object> log = recommendationMapper.getLogById(logId);
+        if (log == null) {
+            return Result.error("推荐记录不存在");
+        }
+        Integer logUserId = parseInt(log.get("userId"));
+        if (logUserId == null || !logUserId.equals(userId)) {
+            return Result.error("无权查看该推荐记录");
+        }
+        Integer flightId = parseInt(log.get("flightId"));
+        if (flightId != null) {
+            FlightInfo flightInfo = flightInfoMapper.getById(flightId);
+            if (flightInfo != null) {
+                log.put("flightNumber", flightInfo.getFlightNumber());
+                log.put("departure", flightInfo.getDeparture());
+                log.put("destination", flightInfo.getDestination());
+            }
+        }
+        List<Integer> dishIds = extractAllDishIds(String.valueOf(log.get("recommendedDishes")));
+        if (!dishIds.isEmpty()) {
+            List<Map<String, Object>> rows = recommendationMapper.resolveDishNames(dishIds);
+            Map<Integer, String> nameMap = new HashMap<>();
+            for (Map<String, Object> row : rows) {
+                Integer id = parseInt(row.get("id"));
+                String name = row.get("name") == null ? null : String.valueOf(row.get("name"));
+                if (id != null) {
+                    nameMap.put(id, name != null ? name : ("餐食#" + id));
+                }
+            }
+            log.put("dishNames", nameMap);
+        }
+        Integer selectedDishId = extractDishIdFromText(log.get("userFeedback"));
+        log.put("selectedDishId", selectedDishId);
+        return Result.success(log);
+    }
+
+    @GetMapping("/recommendation/history/{logId}/breakdown")
+    public Result<Map<String, Object>> historyBreakdown(@PathVariable Long logId) {
+        Integer userId = BaseContext.getCurrentId();
+        Map<String, Object> log = recommendationMapper.getLogById(logId);
+        if (log == null) {
+            return Result.error("推荐记录不存在");
+        }
+        Integer logUserId = parseInt(log.get("userId"));
+        if (logUserId == null || !logUserId.equals(userId)) {
+            return Result.error("无权查看该推荐记录");
+        }
+
+        Integer flightId = parseInt(log.get("flightId"));
+        FlightInfo flightInfo = flightId == null ? null : flightInfoMapper.getById(flightId);
+
+        List<Integer> dishIds = extractAllDishIds(String.valueOf(log.get("recommendedDishes")));
+        if (dishIds.isEmpty()) {
+            Map<String, Object> empty = new HashMap<>();
+            empty.put("breakdown", new ArrayList<>());
+            return Result.success(empty);
+        }
+
+        User user = userMapper.getById(userId);
+        UserPreference preference = userPreferenceMapper.getByUserId(userId);
+        Set<Integer> prefMealTypes = parsePreferenceMealTypes(preference == null ? null : preference.getMealTypePreferences());
+        Set<String> prefFlavors = new HashSet<>(parseFlavorList(preference == null ? null : preference.getFlavorPreferences()));
+
+        List<Integer> cabinTypes = resolveUserCabinTypes(user);
+        List<RecommendationDishVO> dishVOList = recommendationMapper.listCandidateDishes(
+                flightId, null, null, Math.min(dishIds.size(), 20), cabinTypes);
+        Map<Integer, RecommendationDishVO> voMap = new HashMap<>();
+        Map<String, Integer> dishNameIdMap = new HashMap<>();
+        for (RecommendationDishVO vo : dishVOList) {
+            if (vo.getDishId() != null) {
+                voMap.put(vo.getDishId(), vo);
+                if (vo.getDishName() != null) {
+                    dishNameIdMap.put(vo.getDishName().trim(), vo.getDishId());
+                }
+            }
+        }
+        // Fill in any dish IDs that weren't returned by listCandidateDishes
+        for (Integer did : dishIds) {
+            if (!voMap.containsKey(did)) {
+                RecommendationDishVO fallback = new RecommendationDishVO();
+                fallback.setDishId(did);
+                voMap.put(did, fallback);
+            }
+        }
+
+        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(180, 5000);
+        InteractionContext context = buildInteractionContext(recentLogs, voMap, dishNameIdMap);
+
+        double[] fusionWeights = resolveFusionWeights(userId, context);
+        List<Map<String, Object>> breakdown = new ArrayList<>();
+        for (Integer did : dishIds) {
+            RecommendationDishVO vo = voMap.get(did);
+            Map<String, Object> row = new HashMap<>();
+            row.put("dishId", did);
+            row.put("dishName", vo != null && vo.getDishName() != null ? vo.getDishName() : ("餐食#" + did));
+            if (vo != null) {
+                double pmfup = calculatePmfupScore(vo, prefMealTypes, prefFlavors, flightId, context, userId,
+                        flightInfo == null ? null : flightInfo.getDepartureTime(), null, null);
+                double prmidm = calculatePrmidmScore(userId, did, context);
+                double ammbc = calculateAmmbcScore(userId, did, context);
+                double fused = fusionWeights[0] * pmfup + fusionWeights[1] * prmidm + fusionWeights[2] * ammbc;
+                row.put("pmfup", pmfup);
+                row.put("prmidm", prmidm);
+                row.put("ammbc", ammbc);
+                row.put("fused", Math.min(1.0, Math.max(0.0, fused)));
+            } else {
+                row.put("pmfup", 0.0);
+                row.put("prmidm", 0.0);
+                row.put("ammbc", 0.0);
+                row.put("fused", 0.0);
+            }
+            breakdown.add(row);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("breakdown", breakdown);
+        return Result.success(result);
+    }
+
     @GetMapping("/announcement/list")
     public Result<List<FlightAnnouncement>> announcementList() {
         Integer userId = BaseContext.getCurrentId();
@@ -462,21 +650,21 @@ public class RecommendationController {
     }
 
     private double calculatePmfupScore(RecommendationDishVO item,
-                                       Integer prefMealType,
+                                       Set<Integer> prefMealTypes,
                                        Set<String> prefFlavors,
                                        Integer flightId,
                                        InteractionContext context,
                                        Integer userId,
                                        LocalDateTime departureTime,
-                                       Integer mealOrder) {
+                                       Integer mealOrder,
+                                       Integer mealCount) {
         if (item == null || item.getDishId() == null) {
             return 0.0;
         }
 
-        double timeScore = calculateTimePreferenceScore(item, departureTime, mealOrder);
         double prefScore = 0.2;
-        if (prefMealType != null && item.getMealType() != null && prefMealType.equals(item.getMealType())) {
-            prefScore += 0.45;
+        if (!prefMealTypes.isEmpty() && item.getMealType() != null && prefMealTypes.contains(item.getMealType())) {
+            prefScore += prefMealTypes.size() == 1 ? 0.45 : 0.38;
         }
         if (!prefFlavors.isEmpty() && item.getFlavorTags() != null) {
             int matched = 0;
@@ -489,24 +677,45 @@ public class RecommendationController {
                 prefScore += Math.min(0.35, 0.15 + matched * 0.10);
             }
         }
-        double assocScore = calculateAssociationScore(userId, item.getDishId(), context);
 
-        return clamp01(0.44 * prefScore + 0.26 * timeScore + 0.30 * assocScore);
+        double timePrefScore = calculateTimePreferenceScore(item, departureTime, mealOrder);
+        prefScore = clamp01(prefScore * 0.72 + timePrefScore * 0.28);
+
+        if (mealOrder != null && mealCount != null && mealOrder >= mealCount && mealCount > 1
+                && item.getFlavorTags() != null) {
+            if (item.getFlavorTags().contains("清淡") || item.getFlavorTags().contains("低脂")) {
+                prefScore = clamp01(prefScore + 0.06);
+            }
+        }
+
+        return clamp01(prefScore);
     }
 
     private double calculatePrmidmScore(Integer userId, Integer dishId, InteractionContext context) {
         if (dishId == null || userId == null) {
             return 0.0;
         }
+        Set<String> targetFlavors = context.dishFlavorTags.getOrDefault(dishId, Collections.emptySet());
+        Map<String, Double> recentFlavor = context.userRecentFlavorScore.getOrDefault(userId, Collections.emptyMap());
+        Map<String, Double> longFlavor = context.userLongFlavorScore.getOrDefault(userId, Collections.emptyMap());
+
+        double recentFlavorScore = 0.0;
+        double historyFlavorScore = 0.0;
+        for (String flavor : targetFlavors) {
+            recentFlavorScore += recentFlavor.getOrDefault(flavor, 0.0);
+            historyFlavorScore += longFlavor.getOrDefault(flavor, 0.0);
+        }
+
         double interest = context.userDishScore
                 .getOrDefault(userId, Collections.emptyMap())
                 .getOrDefault(dishId, 0.0);
-        double revisitBoost = context.userDishRepeat
-                .getOrDefault(userId, Collections.emptyMap())
-                .getOrDefault(dishId, 0);
 
-        double boosted = interest * (1.0 + Math.min(0.35, revisitBoost * 0.06));
-        return clamp01(boosted / 8.0);
+        double recentPreference = normalizeSignal(recentFlavorScore);
+        double historyPreference = normalizeSignal(historyFlavorScore);
+        double driftBoost = clamp01(recentPreference - historyPreference);
+
+        double shortTermDishSignal = clamp01(interest / 8.0);
+        return clamp01(0.60 * recentPreference + 0.30 * driftBoost + 0.10 * shortTermDishSignal);
     }
 
     private double calculateAmmbcScore(Integer userId, Integer dishId, InteractionContext context) {
@@ -515,8 +724,12 @@ public class RecommendationController {
         }
 
         Map<Integer, Double> current = context.userDishScore.getOrDefault(userId, Collections.emptyMap());
+        if (current.isEmpty()) {
+            return 0.0;
+        }
         double simWeighted = 0.0;
         double simTotal = 0.0;
+        int neighborCount = 0;
         for (Map.Entry<Integer, Map<Integer, Double>> entry : context.userDishScore.entrySet()) {
             Integer otherUserId = entry.getKey();
             if (Objects.equals(otherUserId, userId)) {
@@ -530,46 +743,44 @@ public class RecommendationController {
             if (sim <= 0) {
                 continue;
             }
-            simWeighted += sim * otherVector.get(dishId);
-            simTotal += sim;
+            int overlap = overlapCount(current, otherVector);
+            if (overlap <= 0) {
+                continue;
+            }
+            double adjustedSim = sim * (overlap / (overlap + CF_SHRINK_LAMBDA));
+            if (adjustedSim <= 0) {
+                continue;
+            }
+            simWeighted += adjustedSim * otherVector.get(dishId);
+            simTotal += adjustedSim;
+            neighborCount++;
         }
         if (simTotal <= 0) {
             return 0.0;
         }
         double collaborative = clamp01((simWeighted / simTotal) / 8.0);
-        double confidence = clamp01(simTotal / 2.5);
-        return clamp01(collaborative * (0.75 + 0.25 * confidence));
-    }
-
-    private double calculateAssociationScore(Integer userId, Integer targetDishId, InteractionContext context) {
-        if (targetDishId == null || userId == null) {
-            return 0.0;
-        }
-        Map<Integer, Double> userVector = context.userDishScore.getOrDefault(userId, Collections.emptyMap());
-        if (userVector.isEmpty()) {
-            return 0.0;
-        }
-        List<Map.Entry<Integer, Double>> topHist = userVector.entrySet().stream()
-                .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
-                .limit(4)
-                .toList();
-
-        double score = 0.0;
-        for (Map.Entry<Integer, Double> hist : topHist) {
-            if (Objects.equals(hist.getKey(), targetDishId)) {
-                continue;
-            }
-            String pair = buildPairKey(hist.getKey(), targetDishId);
-            double assoc = context.pairAssociation.getOrDefault(pair, 0.0);
-            score += assoc;
-        }
-        return clamp01(score / Math.max(1, topHist.size()));
+        int exposureCount = context.dishExposureCount.getOrDefault(dishId, 0);
+        double popularityDebias = 1.0 / (1.0 + Math.log1p(Math.max(0, exposureCount)) / 6.0);
+        double confidence = clamp01(simTotal / Math.max(1.0, neighborCount * 0.45));
+        return clamp01(collaborative * popularityDebias * (0.70 + 0.30 * confidence));
     }
 
     private InteractionContext buildInteractionContext(List<Map<String, Object>> logs,
                                                        Map<Integer, RecommendationDishVO> candidateMap,
                                                        Map<String, Integer> dishNameIdMap) {
         InteractionContext ctx = new InteractionContext();
+        Set<Integer> allDishIds = collectDishIdsFromLogs(logs);
+        allDishIds.addAll(candidateMap.keySet());
+        ctx.dishFlavorTags.putAll(loadDishFlavorTags(allDishIds));
+        for (RecommendationDishVO dish : candidateMap.values()) {
+            if (dish == null || dish.getDishId() == null) {
+                continue;
+            }
+            Set<String> flavors = parseFlavorTokens(dish.getFlavorTags());
+            if (!flavors.isEmpty()) {
+                ctx.dishFlavorTags.put(dish.getDishId(), flavors);
+            }
+        }
         for (Map<String, Object> row : logs) {
             Integer uid = parseInt(row.get("userId"));
             if (uid == null) {
@@ -579,42 +790,86 @@ public class RecommendationController {
             String feedback = row.get("userFeedback") == null ? "" : String.valueOf(row.get("userFeedback"));
             LocalDateTime createTime = parseDateTime(row.get("createTime"));
             double decay = timeDecay(createTime);
+            boolean behaviorSignal = false;
 
-            Set<Integer> relatedDishIds = extractDishIds(row.get("recommendedDishes"), dishNameIdMap, candidateMap);
+            Set<Integer> relatedDishIds = extractDishIds(row.get("recommendedDishes"), dishNameIdMap);
             for (Integer did : relatedDishIds) {
-                addScore(ctx.userDishScore, uid, did, 1.0 * decay); // exposure
+                addScore(ctx.userDishScore, uid, did, EXPOSURE_SCORE_WEIGHT * decay);
+                increaseDishExposure(ctx, did);
             }
 
             Integer selectedDishId = extractDishIdFromText(feedback);
-            if (selectedDishId != null && candidateMap.containsKey(selectedDishId)) {
+            if (selectedDishId != null) {
                 if (feedback.startsWith("MANUAL_SELECTED")) {
                     addScore(ctx.userDishScore, uid, selectedDishId, 5.0 * decay);
+                    addFlavorDriftSignal(ctx, uid, selectedDishId, createTime, decay, 2.4);
+                    behaviorSignal = true;
                 } else if (feedback.startsWith("AUTO_SELECTED_OVERDUE")) {
                     addScore(ctx.userDishScore, uid, selectedDishId, 3.0 * decay);
+                    addFlavorDriftSignal(ctx, uid, selectedDishId, createTime, decay, 1.8);
+                    behaviorSignal = true;
                 } else if (feedback.startsWith("CLICK")) {
                     addScore(ctx.userDishScore, uid, selectedDishId, 2.0 * decay);
+                    addFlavorDriftSignal(ctx, uid, selectedDishId, createTime, decay, 1.4);
+                    behaviorSignal = true;
                 }
-
-                int repeated = ctx.userDishRepeat
-                        .computeIfAbsent(uid, k -> new HashMap<>())
-                        .getOrDefault(selectedDishId, 0);
-                ctx.userDishRepeat.get(uid).put(selectedDishId, repeated + 1);
+                increaseDishExposure(ctx, selectedDishId);
             }
 
             Integer rating = parseInt(row.get("userRating"));
-            if (rating != null && rating > 0 && selectedDishId != null && candidateMap.containsKey(selectedDishId)) {
+            if (rating != null && rating > 0 && selectedDishId != null) {
                 addScore(ctx.userDishScore, uid, selectedDishId, (rating >= 4 ? 2.0 : 1.0) * decay); // click/interest signal
+                addFlavorDriftSignal(ctx, uid, selectedDishId, createTime, decay, rating >= 4 ? 1.4 : 0.8);
+                behaviorSignal = true;
             }
 
-            List<Integer> sorted = new ArrayList<>(relatedDishIds);
-            for (int i = 0; i < sorted.size(); i++) {
-                for (int j = i + 1; j < sorted.size(); j++) {
-                    String key = buildPairKey(sorted.get(i), sorted.get(j));
-                    ctx.pairAssociation.put(key, ctx.pairAssociation.getOrDefault(key, 0.0) + 0.12 * decay);
-                }
+            if (behaviorSignal) {
+                markBehaviorSignal(ctx, uid);
             }
         }
         return ctx;
+    }
+
+    private void markBehaviorSignal(InteractionContext context, Integer userId) {
+        if (context == null || userId == null) {
+            return;
+        }
+        int signal = context.userBehaviorSignal.getOrDefault(userId, 0);
+        context.userBehaviorSignal.put(userId, signal + 1);
+    }
+
+    private int resolveBehaviorSignalCount(Integer userId, InteractionContext context) {
+        if (userId == null || context == null) {
+            return 0;
+        }
+        return context.userBehaviorSignal.getOrDefault(userId, 0);
+    }
+
+    private double[] resolveFusionWeights(Integer userId, InteractionContext context) {
+        if (userId == null || context == null) {
+            return new double[]{0.60, 0.25, 0.15};
+        }
+        int signalCount = resolveBehaviorSignalCount(userId, context);
+        double signalConfidence = clamp01(Math.log1p(signalCount) / Math.log(15.0));
+
+        int behaviorCoverageSize = context.userDishScore
+                .getOrDefault(userId, Collections.emptyMap())
+                .size();
+        double behaviorCoverage = clamp01(behaviorCoverageSize / 10.0);
+
+        double recentSignal = sumSignal(context.userRecentFlavorScore.getOrDefault(userId, Collections.emptyMap()));
+        double historySignal = sumSignal(context.userLongFlavorScore.getOrDefault(userId, Collections.emptyMap()));
+        double driftEvidence = clamp01((recentSignal + historySignal) / 12.0);
+
+        double pmfupRaw = 0.46 + 0.22 * (1.0 - signalConfidence) + 0.08 * (1.0 - driftEvidence);
+        double prmidmRaw = 0.22 + 0.30 * driftEvidence + 0.12 * signalConfidence;
+        double ammbcRaw = 0.16 + 0.26 * signalConfidence + 0.18 * behaviorCoverage;
+
+        double total = pmfupRaw + prmidmRaw + ammbcRaw;
+        if (total <= 0) {
+            return new double[]{0.60, 0.25, 0.15};
+        }
+        return new double[]{pmfupRaw / total, prmidmRaw / total, ammbcRaw / total};
     }
 
     private double calculateTimePreferenceScore(Integer mealType) {
@@ -719,18 +974,165 @@ public class RecommendationController {
                 .put(dishId, source.get(userId).getOrDefault(dishId, 0.0) + score);
     }
 
+    private void increaseDishExposure(InteractionContext context, Integer dishId) {
+        if (context == null || dishId == null) {
+            return;
+        }
+        int count = context.dishExposureCount.getOrDefault(dishId, 0);
+        context.dishExposureCount.put(dishId, count + 1);
+    }
+
+    private Set<Integer> collectDishIdsFromLogs(List<Map<String, Object>> logs) {
+        Set<Integer> result = new HashSet<>();
+        if (logs == null || logs.isEmpty()) {
+            return result;
+        }
+        for (Map<String, Object> row : logs) {
+            if (row == null) {
+                continue;
+            }
+            result.addAll(extractAllDishIds(String.valueOf(row.get("recommendedDishes"))));
+            result.addAll(extractAllDishIds(String.valueOf(row.get("userFeedback"))));
+        }
+        return result;
+    }
+
+    private Map<Integer, Set<String>> loadDishFlavorTags(Set<Integer> dishIds) {
+        Map<Integer, Set<String>> result = new HashMap<>();
+        if (dishIds == null || dishIds.isEmpty() || recommendationMapper == null) {
+            return result;
+        }
+        List<Integer> validDishIds = dishIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .distinct()
+                .limit(1200)
+                .toList();
+        if (validDishIds.isEmpty()) {
+            return result;
+        }
+        try {
+            List<Map<String, Object>> rows = recommendationMapper.listDishFlavorTagsByIds(validDishIds);
+            if (rows == null || rows.isEmpty()) {
+                return result;
+            }
+            for (Map<String, Object> row : rows) {
+                Integer dishId = parseInt(row.get("dishId"));
+                if (dishId == null) {
+                    continue;
+                }
+                Set<String> flavors = parseFlavorTokens(row.get("flavorTags") == null ? null : String.valueOf(row.get("flavorTags")));
+                if (!flavors.isEmpty()) {
+                    result.put(dishId, flavors);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("加载菜品口味标签失败，已使用候选集兜底。dishCount={}", validDishIds.size(), ex);
+        }
+        return result;
+    }
+
+    private void addFlavorDriftSignal(InteractionContext context,
+                                      Integer userId,
+                                      Integer dishId,
+                                      LocalDateTime createTime,
+                                      double decay,
+                                      double weight) {
+        if (context == null || userId == null || dishId == null || weight <= 0) {
+            return;
+        }
+        Set<String> flavors = context.dishFlavorTags.getOrDefault(dishId, Collections.emptySet());
+        if (flavors.isEmpty()) {
+            return;
+        }
+        if (createTime == null) {
+            addFlavorScore(context.userLongFlavorScore, userId, flavors, weight * decay);
+            return;
+        }
+        if (isRecentWindow(createTime, RECENT_WINDOW_DAYS)) {
+            addFlavorScore(context.userRecentFlavorScore, userId, flavors, weight * decay);
+            return;
+        }
+        if (isRecentWindow(createTime, HISTORY_WINDOW_DAYS)) {
+            addFlavorScore(context.userLongFlavorScore, userId, flavors, weight * decay);
+        }
+    }
+
+    private void addFlavorScore(Map<Integer, Map<String, Double>> source,
+                                Integer userId,
+                                Set<String> flavors,
+                                double score) {
+        if (source == null || userId == null || flavors == null || flavors.isEmpty()) {
+            return;
+        }
+        Map<String, Double> profile = source.computeIfAbsent(userId, k -> new HashMap<>());
+        for (String flavor : flavors) {
+            if (flavor == null || flavor.trim().isEmpty()) {
+                continue;
+            }
+            profile.put(flavor, profile.getOrDefault(flavor, 0.0) + score);
+        }
+    }
+
+    private boolean isRecentWindow(LocalDateTime createTime, int days) {
+        if (createTime == null) {
+            return false;
+        }
+        return !createTime.isBefore(LocalDateTime.now().minusDays(days));
+    }
+
+    private double normalizeSignal(double score) {
+        if (score <= 0) {
+            return 0.0;
+        }
+        return clamp01(score / (score + 2.0));
+    }
+
+    private double sumSignal(Map<String, Double> source) {
+        if (source == null || source.isEmpty()) {
+            return 0.0;
+        }
+        double total = 0.0;
+        for (Double value : source.values()) {
+            if (value == null || value <= 0) {
+                continue;
+            }
+            total += value;
+        }
+        return total;
+    }
+
+    private Set<String> parseFlavorTokens(String raw) {
+        Set<String> result = new HashSet<>();
+        if (raw == null || raw.trim().isEmpty()) {
+            return result;
+        }
+        String compact = raw.replace("[", "")
+                .replace("]", "")
+                .replace("\"", "")
+                .replace("、", ",")
+                .replace("/", ",")
+                .replace("|", ",")
+                .replace(";", ",")
+                .replace("，", ",");
+        for (String token : compact.split(",")) {
+            String flavor = token == null ? "" : token.trim();
+            if (!flavor.isEmpty()) {
+                result.add(flavor);
+            }
+        }
+        return result;
+    }
+
     private Set<Integer> extractDishIds(Object value,
-                                        Map<String, Integer> dishNameIdMap,
-                                        Map<Integer, RecommendationDishVO> candidateMap) {
+                                        Map<String, Integer> dishNameIdMap) {
         Set<Integer> result = new HashSet<>();
         if (value == null) {
             return result;
         }
         String text = String.valueOf(value);
         for (Integer id : extractAllDishIds(text)) {
-            if (candidateMap.containsKey(id)) {
-                result.add(id);
-            }
+            result.add(id);
         }
         String compact = text.replace("[", "").replace("]", "").replace("\"", "");
         for (String token : compact.split(",")) {
@@ -765,11 +1167,17 @@ public class RecommendationController {
         return ids;
     }
 
-    private String buildPairKey(Integer a, Integer b) {
-        if (a == null || b == null) {
-            return "0:0";
+    private int overlapCount(Map<Integer, Double> a, Map<Integer, Double> b) {
+        if (a.isEmpty() || b.isEmpty()) {
+            return 0;
         }
-        return a < b ? a + ":" + b : b + ":" + a;
+        int overlap = 0;
+        for (Integer key : a.keySet()) {
+            if (b.containsKey(key)) {
+                overlap++;
+            }
+        }
+        return overlap;
     }
 
     private double cosineSimilarity(Map<Integer, Double> a, Map<Integer, Double> b) {
@@ -826,17 +1234,22 @@ public class RecommendationController {
 
     private static class InteractionContext {
         private final Map<Integer, Map<Integer, Double>> userDishScore = new HashMap<>();
-        private final Map<Integer, Map<Integer, Integer>> userDishRepeat = new HashMap<>();
-        private final Map<String, Double> pairAssociation = new HashMap<>();
+        private final Map<Integer, Integer> dishExposureCount = new HashMap<>();
+        private final Map<Integer, Integer> userBehaviorSignal = new HashMap<>();
+        private final Map<Integer, Map<String, Double>> userRecentFlavorScore = new HashMap<>();
+        private final Map<Integer, Map<String, Double>> userLongFlavorScore = new HashMap<>();
+        private final Map<Integer, Set<String>> dishFlavorTags = new HashMap<>();
     }
 
     private String validatePreference(UserPreference preference) {
         if (preference == null) {
             return "偏好参数不能为空";
         }
-        Integer mealType = parsePreferenceMealType(preference.getMealTypePreferences());
-        if (mealType != null && !ALLOWED_MEAL_TYPES.contains(mealType)) {
-            return "mealTypePreferences包含非法餐型";
+        Set<Integer> mealTypes = parsePreferenceMealTypes(preference.getMealTypePreferences());
+        for (Integer mt : mealTypes) {
+            if (!ALLOWED_MEAL_TYPES.contains(mt)) {
+                return "mealTypePreferences包含非法餐型";
+            }
         }
         List<String> flavors = parseFlavorList(preference.getFlavorPreferences());
         for (String item : flavors) {
@@ -847,20 +1260,26 @@ public class RecommendationController {
         return null;
     }
 
-    private Integer parsePreferenceMealType(String raw) {
+    private Set<Integer> parsePreferenceMealTypes(String raw) {
         if (raw == null || raw.trim().isEmpty()) {
-            return null;
+            return Collections.emptySet();
         }
         String compact = raw.replace("[", "").replace("]", "").replace("\"", "").trim();
         if (compact.isEmpty()) {
-            return null;
+            return Collections.emptySet();
         }
-        String first = compact.split(",")[0].trim();
-        try {
-            return Integer.parseInt(first);
-        } catch (Exception ex) {
-            return null;
+        Set<Integer> result = new LinkedHashSet<>();
+        for (String token : compact.split(",")) {
+            try {
+                int v = Integer.parseInt(token.trim());
+                if (ALLOWED_MEAL_TYPES.contains(v)) {
+                    result.add(v);
+                }
+            } catch (Exception ex) {
+                // skip invalid tokens
+            }
         }
+        return result;
     }
 
     private List<String> parseFlavorList(String raw) {

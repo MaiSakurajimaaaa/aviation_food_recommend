@@ -75,7 +75,7 @@ const verifyAndRoute = async () => {
       uni.redirectTo({ url: '/pages/preferences/preferences?first=1' })
       return
     }
-    uni.redirectTo({ url: '/pages/recommendation/recommendation' })
+    uni.switchTab({ url: '/pages/recommendation/recommendation' })
   } else {
     uni.showToast({ title: '该身份证未绑定航班，请先联系工作人员', icon: 'none' })
   }

@@ -24,17 +24,6 @@
       </view>
     </view>
 
-    <view class="notice-card card" @click="openAnnouncementCenter">
-      <view>
-        <view class="notice-title">公告中心</view>
-        <view class="notice-desc">{{ announcementUnread ? `你有 ${formatUnreadCount(announcementUnread)} 条未读公告` : '暂无未读公告，点击查看历史通知' }}</view>
-      </view>
-      <view class="notice-right">
-        <view class="notice-link">查看公告</view>
-        <view class="notice-badge" v-if="announcementUnread">{{ formatUnreadCount(announcementUnread) }}</view>
-      </view>
-    </view>
-
     <view class="rating-card card" v-if="pendingRatingList.length">
       <view>
         <view class="rating-title">航班已结束，待评分 {{ pendingRatingList.length }} 条</view>
@@ -54,19 +43,28 @@
       <view class="deadline" v-if="currentFlight?.selectionDeadline">预选截止：{{ formatDeadline(currentFlight.selectionDeadline) }}</view>
     </view>
 
+    <!-- 无活跃航班时展示 -->
+    <view class="card empty-card" v-if="!currentFlight && !candidateFlights.length && !loading">
+      <view class="empty-title">暂无可预选航班</view>
+      <view class="empty-desc">所有航班已结束或当前身份未绑定有效航班。请在航班页核实身份信息。</view>
+      <button class="btn ghost" style="margin-top: 20rpx;" @click="goToFlight">前往航班页</button>
+    </view>
+
     <view class="card state-card" v-if="currentFlight">
       <view class="section-head">
         <view class="title">预选状态</view>
-        <view class="chip" :class="selectionPhase === 'selected' ? 'state-ok' : 'state-warn'">{{ selectionPhaseText }}</view>
+        <view class="chip" :class="selectionChipClass">{{ selectionPhaseText }}</view>
       </view>
       <view class="state-main">当前餐次：{{ selectedMealOrderLabel }}</view>
       <view class="state-main">{{ selectionMainText }}</view>
       <view class="state-sub">{{ selectionSubText }}</view>
+      <view class="state-sub" v-if="selectionGuideText">{{ selectionGuideText }}</view>
       <view class="state-tags">
-        <view class="state-tag">{{ currentFlight.flightNumber }} {{ selectedMealOrderLabel }}：{{ hasManualSelectionForCurrentFlight ? '已选' : '未选' }}</view>
+        <view class="state-tag">{{ currentFlight.flightNumber }} {{ selectedMealOrderLabel }}：{{ hasManualSelectionForCurrentMeal ? '已选' : '未选' }}</view>
+        <view class="state-tag">总进度：{{ currentFlightSelectionProgress.completedCount }}/{{ currentFlightSelectionProgress.totalMealCount }}</view>
         <view class="state-tag">截止：{{ formatDeadline(currentFlight.selectionDeadline) }}</view>
       </view>
-      <view class="selected-dish" v-if="selectionPhase === 'selected'">
+      <view class="selected-dish" v-if="hasManualSelectionForCurrentMeal">
         <view class="selected-kicker">当前已选</view>
         <view class="selected-name">{{ selectedDishName }}</view>
       </view>
@@ -121,7 +119,7 @@
             <view class="dish-main">
               <view class="dish-head">
                 <view class="dish-title">{{ item.dishName }}</view>
-                <view class="score-pill">{{ Math.round((item.score || 0) * 100) }}%</view>
+                <view class="score-pill">{{ formatScorePercent(item.score) }}%</view>
               </view>
               <view class="score-track">
                 <view class="score-fill" :style="{ width: `${Math.round((item.score || 0) * 100)}%` }"></view>
@@ -170,7 +168,6 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import {
-  getAnnouncementListAPI,
   getPendingRatingAPI,
   getRecommendationHistoryAPI,
   getRecommendationListAPI,
@@ -179,10 +176,13 @@ import {
 } from '@/api/recommendation'
 import { bindFlightAPI } from '@/api/flight'
 import { useFlightContext } from '@/composables/useFlightContext'
-import { countUnreadAnnouncements, filterActiveAnnouncements, sortAnnouncementsByTime } from '@/utils/announcement'
 import { MEAL_TYPE_FILTER_OPTIONS, getMealTypeLabel } from '@/utils/meal'
+import {
+  findLatestManualSelectionForMealOrder,
+  getFlightMealSelectionProgress,
+  hasManualSelectionForMealOrder,
+} from '@/utils/mealSelection'
 import type {
-  AnnouncementItem,
   FlightInfo,
   PendingRatingInfo,
   RecommendationDish,
@@ -200,7 +200,6 @@ const list = ref<RecommendationDish[]>([])
 const ranking = ref<RecommendationTopItem[]>([])
 const recommendationHistory = ref<Record<string, unknown>[]>([])
 const pendingRatingList = ref<PendingRatingInfo[]>([])
-const announcementUnread = ref(0)
 const selectedMealTypeLabel = ref('全部餐型')
 const candidateFlights = ref<FlightInfo[]>([])
 const currentFlight = ref<FlightInfo | null>(null)
@@ -214,11 +213,6 @@ const resolveDishImage = (item: RecommendationDish, index: number) => {
   const pic = item?.pic ? String(item.pic).trim() : ''
   if (pic) return pic
   return fallbackDishImages[index % fallbackDishImages.length]
-}
-
-const formatUnreadCount = (count: number) => {
-  if (count > 99) return '99+'
-  return String(count)
 }
 
 const onSwiperChange = (event: any) => {
@@ -273,6 +267,11 @@ const formatFlavor = (value?: string) => {
   return String(value).replace(/[\[\]"]/g, '')
 }
 
+const formatScorePercent = (score?: number) => {
+  const safe = Number(score || 0)
+  return (safe * 100).toFixed(1)
+}
+
 const formatDeadline = (value?: string) => {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 16)
@@ -281,45 +280,36 @@ const formatDeadline = (value?: string) => {
 const isSelectionClosed = computed(() => {
   const deadline = currentFlight.value?.selectionDeadline
   if (!deadline) return false
-  const timestamp = new Date(String(deadline)).getTime()
+  const normalized = String(deadline).replace(' ', 'T')
+  const timestamp = new Date(normalized).getTime()
   if (Number.isNaN(timestamp)) return false
   return Date.now() > timestamp
 })
 
-const hasManualSelectionForCurrentFlight = computed(() => {
-  const flightId = currentFlight.value?.id
-  if (!flightId) return false
-  return recommendationHistory.value.some((item) => {
-    const row = item as Record<string, unknown>
-    const rowFlightIdRaw = row.flightId ?? row.flight_id
-    const rowFlightId = Number(rowFlightIdRaw)
-    if (Number.isNaN(rowFlightId) || rowFlightId !== flightId) return false
-    const feedback = String(row.userFeedback ?? row.user_feedback ?? '')
-    if (!feedback.startsWith('MANUAL_SELECTED')) return false
-    const orderMatch = feedback.match(/mealOrder=(\d+)/)
-    const order = orderMatch?.[1] ? Number(orderMatch[1]) : 1
-    return order === selectedMealOrder.value
+const currentFlightSelectionProgress = computed(() => {
+  return getFlightMealSelectionProgress({
+    history: recommendationHistory.value,
+    flightId: currentFlight.value?.id,
+    mealCount: currentFlight.value?.mealCount,
+  })
+})
+
+const hasManualSelectionForCurrentMeal = computed(() => {
+  return hasManualSelectionForMealOrder({
+    history: recommendationHistory.value,
+    flightId: currentFlight.value?.id,
+    mealCount: currentFlightSelectionProgress.value.totalMealCount,
+    mealOrder: selectedMealOrder.value,
   })
 })
 
 const latestManualSelection = computed(() => {
-  const flightId = currentFlight.value?.id
-  if (!flightId) return null
-
-  const rows = recommendationHistory.value.filter((item) => {
-    const row = item as Record<string, unknown>
-    const rowFlightIdRaw = row.flightId ?? row.flight_id
-    const rowFlightId = Number(rowFlightIdRaw)
-    if (Number.isNaN(rowFlightId) || rowFlightId !== flightId) return false
-    const feedback = String(row.userFeedback ?? row.user_feedback ?? '')
-    if (!feedback.startsWith('MANUAL_SELECTED')) return false
-    const orderMatch = feedback.match(/mealOrder=(\d+)/)
-    const order = orderMatch?.[1] ? Number(orderMatch[1]) : 1
-    return order === selectedMealOrder.value
-  }) as Array<Record<string, unknown>>
-
-  if (!rows.length) return null
-  return [...rows].sort((a, b) => Number(b.id ?? 0) - Number(a.id ?? 0))[0]
+  return findLatestManualSelectionForMealOrder({
+    history: recommendationHistory.value,
+    flightId: currentFlight.value?.id,
+    mealCount: currentFlightSelectionProgress.value.totalMealCount,
+    mealOrder: selectedMealOrder.value,
+  })
 })
 
 const extractDishIdFromText = (value: unknown) => {
@@ -346,28 +336,83 @@ const selectedDishName = computed(() => {
   return `餐食 #${selectedDishId.value}`
 })
 
-const selectionPhase = computed<'selected' | 'unselected'>(() => {
-  return hasManualSelectionForCurrentFlight.value ? 'selected' : 'unselected'
+const selectionPhase = computed<'completed' | 'partial' | 'unselected'>(() => {
+  const progress = currentFlightSelectionProgress.value
+  if (progress.isFullySelected) return 'completed'
+  if (progress.completedCount > 0) return 'partial'
+  return 'unselected'
+})
+
+const selectionChipClass = computed(() => {
+  if (isSelectionClosed.value) return 'state-closed'
+  return selectionPhase.value === 'completed' ? 'state-ok' : 'state-warn'
 })
 
 const selectionPhaseText = computed(() => {
-  return selectionPhase.value === 'selected' ? '已预选餐食' : '未预选餐食'
+  if (isSelectionClosed.value) {
+    return currentFlightSelectionProgress.value.completedCount > 0 ? '已截止 · 已预选' : '已截止 · 自动分配'
+  }
+  const progress = currentFlightSelectionProgress.value
+  if (selectionPhase.value === 'completed') return '已完成全部餐次'
+  if (selectionPhase.value === 'partial') return `部分完成 ${progress.completedCount}/${progress.totalMealCount}`
+  return '尚未开始预选'
 })
 
 const selectionMainText = computed(() => {
-  if (selectionPhase.value === 'selected') {
-    return '你已完成本航班预选，可按需改选。'
+  const progress = currentFlightSelectionProgress.value
+  if (isSelectionClosed.value) {
+    if (progress.completedCount > 0) {
+      return '预选时间已截止：本航班已预选，系统将按已预选结果配餐。'
+    }
+    return '预选时间已截止：本航班未预选，系统将自动分配餐食。'
   }
-  return '你尚未完成本航班预选，请尽快确认餐食。'
+  if (selectionPhase.value === 'completed') {
+    return `本航班 ${progress.completedCount}/${progress.totalMealCount} 餐次均已完成，可按需改选。`
+  }
+  if (selectionPhase.value === 'partial') {
+    return `本航班已完成 ${progress.completedCount}/${progress.totalMealCount} 餐次，请继续完成其余餐次。`
+  }
+  return `本航班共 ${progress.totalMealCount} 餐次，当前尚未开始预选。`
+})
+
+const remainingMealOrderLabels = computed(() => {
+  return currentFlightSelectionProgress.value.remainingMealOrders.map((order) => `第${order}餐`)
+})
+
+const nextPendingMealOrderLabel = computed(() => {
+  const order = currentFlightSelectionProgress.value.remainingMealOrders[0]
+  return order ? `第${order}餐` : ''
 })
 
 const selectionSubText = computed(() => {
+  const progress = currentFlightSelectionProgress.value
   if (isSelectionClosed.value) {
-    return hasManualSelectionForCurrentFlight.value ? '当前航班已截止，已选餐食等待系统配餐。' : '当前航班已截止，系统将自动进行餐食分配。'
+    if (progress.completedCount <= 0) {
+      return '当前航班无预选记录，系统将按默认规则自动分配。'
+    }
+    if (!progress.isFullySelected) {
+      return `已预选 ${progress.completedCount}/${progress.totalMealCount} 餐，未完成餐次将自动分配。`
+    }
+    return '全部预选餐次已锁定，当前仅支持查看预选结果。'
   }
-  return selectionPhase.value === 'selected'
-    ? '截止前可继续调整，最后一次确认将作为最终预选。'
-    : '截止前可自由选择并确认，推荐会根据偏好实时更新。'
+  if (selectionPhase.value === 'completed') {
+    return '截止前可继续调整任意餐次，最后一次确认将作为最终预选。'
+  }
+  if (selectionPhase.value === 'partial') {
+    return `未完成餐次：${remainingMealOrderLabels.value.join('、')}。`
+  }
+  return '请先完成当前餐次，再逐步切换到后续餐次。'
+})
+
+const selectionGuideText = computed(() => {
+  if (isSelectionClosed.value) return ''
+  if (hasManualSelectionForCurrentMeal.value) {
+    if (selectionPhase.value !== 'completed' && nextPendingMealOrderLabel.value) {
+      return `当前${selectedMealOrderLabel.value}已完成，建议继续预选${nextPendingMealOrderLabel.value}。`
+    }
+    return '当前餐次已确认，可按需改选。'
+  }
+  return `请先完成${selectedMealOrderLabel.value}预选。`
 })
 
 const isDishCurrentSelected = (item: RecommendationDish) => {
@@ -376,12 +421,12 @@ const isDishCurrentSelected = (item: RecommendationDish) => {
 
 const selectionActionText = (item: RecommendationDish) => {
   if (isSelectionClosed.value) {
-    return hasManualSelectionForCurrentFlight.value ? '该航班已完成预选' : '该航班已截止'
+    return '预选时间已截止'
   }
   if (isDishCurrentSelected(item)) {
     return '当前已选'
   }
-  return selectionPhase.value === 'selected' ? '改选并确认' : '选择并确认'
+  return hasManualSelectionForCurrentMeal.value ? '改选并确认' : '选择并确认'
 }
 
 const onFlightChange = async (event: any) => {
@@ -397,7 +442,7 @@ const onFlightChange = async (event: any) => {
 
 const loadFlightContext = async () => {
   const context = await loadFlightContextData()
-  if (!context.ok) {
+  if (context.needIdentity) {
     uni.showToast({title: '请先在航班页完成身份初始化', icon: 'none'})
     uni.switchTab({url: '/pages/flight/flight'})
     return false
@@ -418,7 +463,7 @@ const loadFlightContext = async () => {
 
 const loadRecommendationData = async () => {
   const currentDishId = list.value[swiperCurrent.value]?.dishId
-  const [recRes, rankRes, historyRes, pendingRes, announcementRes] = await Promise.all([
+  const [recRes, rankRes, historyRes, pendingRes] = await Promise.all([
     getRecommendationListAPI({
       flavor: selectedFlavor.value || undefined,
       mealType: selectedMealType.value ? Number(selectedMealType.value) : undefined,
@@ -428,14 +473,11 @@ const loadRecommendationData = async () => {
     getRecommendationTopAPI(5),
     getRecommendationHistoryAPI(),
     getPendingRatingAPI(),
-    getAnnouncementListAPI().catch(() => ({data: [] as AnnouncementItem[]})),
   ])
   list.value = recRes.data || []
   ranking.value = rankRes.data || []
   recommendationHistory.value = historyRes.data || []
   pendingRatingList.value = pendingRes.data || []
-  const activeAnnouncements = sortAnnouncementsByTime(filterActiveAnnouncements(announcementRes.data || []))
-  announcementUnread.value = countUnreadAnnouncements(activeAnnouncements)
 
   // Keep current slide aligned with refreshed data while preserving swiper instance,
   // which avoids intermittent gesture interruption on mini-app clients.
@@ -461,7 +503,6 @@ const loadData = async () => {
       ranking.value = []
       recommendationHistory.value = []
       pendingRatingList.value = []
-      announcementUnread.value = 0
       return
     }
     await loadRecommendationData()
@@ -470,30 +511,36 @@ const loadData = async () => {
   }
 }
 
+const goToFlight = () => {
+  uni.switchTab({url: '/pages/flight/flight'})
+}
+
 const openRatingPage = () => {
   if (!pendingRatingList.value.length) return
   uni.switchTab({url: '/pages/flightRating/flightRating'})
 }
 
-const openAnnouncementCenter = () => {
-  uni.navigateTo({url: '/pages/announcement/announcement'})
+const reportRecommendationClick = (dishId: number, mealOrder: number) => {
+  void reportRecommendationClickAPI(dishId, mealOrder).catch(() => {
+    // Click logging failure should not block user selection flow.
+  })
 }
 
 const goSelect = (item: RecommendationDish) => {
   if (isSelectionClosed.value) {
-    const title = hasManualSelectionForCurrentFlight.value
-      ? '该航班预选已截止，等待系统配餐'
-      : '该航班预选已截止，系统将自动配餐'
-    uni.showToast({title, icon: 'none'})
+    uni.showToast({
+      title: currentFlightSelectionProgress.value.completedCount > 0
+        ? '预选时间已截止，已预选结果已锁定'
+        : '预选时间已截止，系统将自动分配餐食',
+      icon: 'none',
+    })
     return
   }
   if (!item?.dishId) {
     uni.showToast({title: '餐食数据异常', icon: 'none'})
     return
   }
-  void reportRecommendationClickAPI(item.dishId, selectedMealOrder.value).catch(() => {
-    // Click logging failure should not block user selection flow.
-  })
+  reportRecommendationClick(item.dishId, selectedMealOrder.value)
   const payloadData: RecommendConfirmPayload = {
     dishId: item.dishId,
     mealOrder: selectedMealOrder.value,
@@ -747,6 +794,11 @@ onShow(() => {
 .chip.state-warn {
   background: #fff4e2;
   color: #b7751c;
+}
+
+.chip.state-closed {
+  background: #edf2f7;
+  color: #4d6074;
 }
 
 .state-card {
@@ -1010,24 +1062,37 @@ onShow(() => {
 
 .choose-btn {
   margin-top: 16rpx;
-  border-radius: 16rpx;
-  background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
+  min-height: 80rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: linear-gradient(135deg, #0b87d7 0%, #17b8e8 100%);
+  box-shadow: 0 16rpx 28rpx rgba(14, 132, 198, 0.26), inset 0 2rpx 0 rgba(255, 255, 255, 0.26);
   color: #fff;
-  font-size: 26rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
 }
 
 .choose-btn.disabled {
-  background: #d8e3ee;
-  color: #6f8598;
+  border-color: #d7e4ef;
+  background: linear-gradient(135deg, #d8e3ee 0%, #cdd9e5 100%);
+  box-shadow: none;
+  color: #60768b;
 }
 
 .choose-btn.selected {
-  background: #eef4fa;
-  color: #68839d;
+  border-color: #c2d5e7;
+  background: linear-gradient(135deg, #e8f1f9 0%, #dde9f5 100%);
+  box-shadow: inset 0 2rpx 8rpx rgba(95, 127, 156, 0.12);
+  color: #415f7c;
 }
 
 .choose-btn-hover {
-  opacity: 0.92;
+  transform: translateY(-2rpx);
+  filter: brightness(1.03);
 }
 
 .swiper-indicator {

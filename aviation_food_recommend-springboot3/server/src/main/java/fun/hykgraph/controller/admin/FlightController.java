@@ -24,7 +24,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -153,10 +155,59 @@ public class FlightController {
         return Result.success(userMapper.listPassengersByFlightId(flightId));
     }
 
+    @GetMapping("/passengers")
+    public Result<List<FlightPassengerVO>> searchPassengers(@RequestParam(required = false) String flightNumber,
+                                                             @RequestParam(required = false) String name,
+                                                             @RequestParam(required = false) String idNumber) {
+        String fn = flightNumber == null ? null : flightNumber.trim();
+        if (fn != null && fn.isEmpty()) fn = null;
+        String n = name == null ? null : name.trim();
+        if (n != null && n.isEmpty()) n = null;
+        String id = idNumber == null ? null : idNumber.trim();
+        if (id != null && id.isEmpty()) id = null;
+        if (fn == null && n == null && id == null) {
+            return Result.success(new ArrayList<>());
+        }
+        return Result.success(userMapper.searchPassengers(fn, n, id));
+    }
+
+    @GetMapping("/passenger/search")
+    public Result<List<Map<String, Object>>> searchPassenger(@RequestParam(required = false) String keyword,
+                                                             @RequestParam(defaultValue = "20") Integer limit) {
+        String keywordParam = keyword == null ? null : keyword.trim();
+        int safeLimit = limit == null ? 20 : Math.max(1, Math.min(limit, 50));
+        return Result.success(userMapper.searchAdminPassengerCandidates(keywordParam, safeLimit));
+    }
+
     @PostMapping("/passenger")
     public Result addPassenger(@RequestBody FlightPassengerDTO dto) {
+        String passengerValidation = validatePassengerPayload(dto, false);
+        if (passengerValidation != null) {
+            return Result.error(passengerValidation);
+        }
         if (dto.getFlightId() == null) {
             return Result.error("flightId 不能为空");
+        }
+        FlightInfo flightInfo = flightInfoMapper.getById(dto.getFlightId());
+        if (flightInfo == null) {
+            return Result.error("航班不存在");
+        }
+        Integer sourceType = dto.getSourceType() == null ? 1 : dto.getSourceType();
+        if (sourceType == 2) {
+            if (dto.getExistingUserId() == null) {
+                return Result.error("请选择要绑定的老用户");
+            }
+            User selected = userMapper.getById(dto.getExistingUserId());
+            if (selected == null) {
+                return Result.error("老用户不存在或已删除");
+            }
+            User bindUser = User.builder()
+                    .id(selected.getId())
+                    .currentFlightId(dto.getFlightId())
+                    .cabinType(resolveUserCabinType(dto.getCabinType() == null ? selected.getCabinType() : dto.getCabinType()))
+                    .build();
+            userMapper.update(bindUser);
+            return Result.success();
         }
         if (!isValidUserCabinType(dto.getCabinType())) {
             return Result.error("旅客舱型不合法，仅支持1-头等舱、2-商务舱、3-经济舱");
@@ -165,6 +216,23 @@ public class FlightController {
             return Result.error("身份证号格式不正确");
         }
         String normalizedIdNumber = normalizeIdNumber(dto.getIdNumber());
+        if (normalizedIdNumber != null) {
+            User existed = userMapper.getLatestByIdNumber(normalizedIdNumber);
+            if (existed != null) {
+                User updateUser = User.builder()
+                        .id(existed.getId())
+                        .name(dto.getName())
+                        .phone(dto.getPhone())
+                        .gender(dto.getGender())
+                        .idNumber(normalizedIdNumber)
+                        .preferenceCompleted(resolvePreferenceCompleted(existed.getId()))
+                        .currentFlightId(dto.getFlightId())
+                        .cabinType(resolveUserCabinType(dto.getCabinType()))
+                        .build();
+                userMapper.update(updateUser);
+                return Result.success();
+            }
+        }
         User user = User.builder()
                 .name(dto.getName())
                 .openid("admin-manual-" + UUID.randomUUID())
@@ -182,8 +250,19 @@ public class FlightController {
 
     @PutMapping("/passenger")
     public Result updatePassenger(@RequestBody FlightPassengerDTO dto) {
+        String passengerValidation = validatePassengerPayload(dto, true);
+        if (passengerValidation != null) {
+            return Result.error(passengerValidation);
+        }
         if (dto.getId() == null) {
             return Result.error("id 不能为空");
+        }
+        if (dto.getFlightId() == null) {
+            return Result.error("flightId 不能为空");
+        }
+        FlightInfo flightInfo = flightInfoMapper.getById(dto.getFlightId());
+        if (flightInfo == null) {
+            return Result.error("航班不存在");
         }
         if (!isValidUserCabinType(dto.getCabinType())) {
             return Result.error("旅客舱型不合法，仅支持1-头等舱、2-商务舱、3-经济舱");
@@ -192,6 +271,12 @@ public class FlightController {
             return Result.error("身份证号格式不正确");
         }
         String normalizedIdNumber = normalizeIdNumber(dto.getIdNumber());
+        if (normalizedIdNumber != null) {
+            Integer duplicated = userMapper.countByIdNumberExcludeId(normalizedIdNumber, dto.getId());
+            if (duplicated != null && duplicated > 0) {
+                return Result.error("该身份证号已绑定其他客户ID，请勿重复保存");
+            }
+        }
         User user = User.builder()
                 .id(dto.getId())
                 .name(dto.getName())
@@ -220,6 +305,33 @@ public class FlightController {
         }
         String compact = raw.replace("[", "").replace("]", "").replace("\"", "").trim();
         return compact.isEmpty() ? 0 : 1;
+    }
+
+    private String validatePassengerPayload(FlightPassengerDTO dto, boolean requireId) {
+        if (dto == null) {
+            return "客户参数不能为空";
+        }
+        if (requireId && dto.getId() == null) {
+            return "id 不能为空";
+        }
+        if (dto.getFlightId() == null) {
+            return "flightId 不能为空";
+        }
+        Integer sourceType = dto.getSourceType() == null ? 1 : dto.getSourceType();
+        if (sourceType != 1 && sourceType != 2) {
+            return "sourceType 仅支持1(新用户)或2(老用户)";
+        }
+        if (sourceType == 2) {
+            if (dto.getExistingUserId() == null) {
+                return "老用户模式下必须选择existingUserId";
+            }
+            return null;
+        }
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            return "客户姓名不能为空";
+        }
+        dto.setName(dto.getName().trim());
+        return null;
     }
 
     private boolean isValidIdNumber(String idNumber) {

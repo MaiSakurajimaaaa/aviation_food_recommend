@@ -22,6 +22,10 @@ import java.util.Map;
 @Service
 public class UserServiceImpl implements UserService {
 
+    private static final int CABIN_FIRST = 1;
+    private static final int CABIN_BUSINESS = 2;
+    private static final int CABIN_ECONOMY = 3;
+
     // 微信服务接口地址
     public static final String WX_LOGIN = "https://api.weixin.qq.com/sns/jscode2session";
 
@@ -73,7 +77,15 @@ public class UserServiceImpl implements UserService {
     public void update(UserDTO userDTO) {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user);
+        user.setCabinType(normalizeCabinType(user.getCabinType()));
         userMapper.update(user);
+    }
+
+    private Integer normalizeCabinType(Integer cabinType) {
+        if (cabinType == null) {
+            return null;
+        }
+        return (cabinType >= CABIN_FIRST && cabinType <= CABIN_ECONOMY) ? cabinType : CABIN_ECONOMY;
     }
 
     /**

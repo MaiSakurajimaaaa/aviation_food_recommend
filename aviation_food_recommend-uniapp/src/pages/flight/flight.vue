@@ -31,10 +31,8 @@
       <view class="title">身份冷启动</view>
       <view class="tip">请输入身份证号，系统将自动匹配可乘坐航班。</view>
       <input v-model="idNumberInput" maxlength="18" placeholder="请输入18位身份证号" class="input" />
-      <view class="tip">请选择舱型</view>
-      <picker mode="selector" :range="cabinTypeOptions" range-key="label" :value="cabinTypeIndex" @change="onCabinTypeChange">
-        <view class="input">{{ cabinTypeLabel }}</view>
-      </picker>
+      <view class="tip">当前舱型：{{ cabinTypeLabel }}</view>
+      <view class="tip">舱型仅支持管理员设置，如需调整请联系工作人员。</view>
       <view class="tip">规则：头等舱包含商务舱与经济舱餐食，商务舱包含经济舱餐食。</view>
       <button class="btn" @click="saveIdNumberAndLoad">保存并匹配</button>
     </view>
@@ -47,12 +45,8 @@
       <view class="row"><text class="label">身份证：</text><text class="value">{{ user.idNumber }}</text></view>
       <view class="row"><text class="label">昵称：</text><text class="value">{{ user.name || '未设置' }}</text></view>
       <view class="row"><text class="label">舱型：</text><text class="value">{{ cabinTypeLabel }}</text></view>
-      <view class="tip">如舱位变更，可在此重新设置并保存。</view>
-      <picker mode="selector" :range="cabinTypeOptions" range-key="label" :value="cabinTypeIndex" @change="onCabinTypeChange">
-        <view class="input">{{ cabinTypeLabel }}</view>
-      </picker>
+      <view class="tip">舱型仅支持管理员修改，如需变更请联系工作人员。</view>
       <view class="tip">规则：头等舱包含商务舱与经济舱餐食，商务舱包含经济舱餐食。</view>
-      <button class="btn" @click="saveCabinType">保存舱型</button>
     </view>
 
     <view class="card current-flight" v-if="currentFlight">
@@ -99,6 +93,7 @@ import { bindFlightAPI, getCurrentFlightAPI, getFlightListAPI } from '@/api/flig
 import { getPendingRatingAPI, getRecommendationHistoryAPI } from '@/api/recommendation'
 import { getUserInfoAPI, updateUserAPI } from '@/api/user'
 import { useAuthGuard } from '@/composables/useAuthGuard'
+import { getFlightMealSelectionProgress } from '@/utils/mealSelection'
 import type { FlightInfo, PendingRatingInfo } from '@/types/aviation'
 import type { ProfileDetail } from '@/types/user'
 
@@ -110,65 +105,45 @@ const candidateFlights = ref<FlightInfo[]>([])
 const recommendationHistory = ref<Record<string, unknown>[]>([])
 const pendingRatingList = ref<PendingRatingInfo[]>([])
 const loading = ref(false)
-const cabinTypeInput = ref(3)
-
-const cabinTypeOptions = [
-  { value: 1, label: '头等舱' },
-  { value: 2, label: '商务舱' },
-  { value: 3, label: '经济舱' },
-]
-
-const cabinTypeIndex = computed(() => {
-  const idx = cabinTypeOptions.findIndex((item) => item.value === cabinTypeInput.value)
-  return idx >= 0 ? idx : 2
-})
 
 const cabinTypeLabel = computed(() => {
-  const current = cabinTypeOptions.find((item) => item.value === cabinTypeInput.value)
-  return current?.label || '经济舱'
+  const cabinType = Number(user.value.cabinType)
+  if (cabinType === 1) return '头等舱'
+  if (cabinType === 2) return '商务舱'
+  return '经济舱'
 })
-
-const onCabinTypeChange = (event: any) => {
-  const index = Number(event.detail.value)
-  const selected = cabinTypeOptions[index]
-  if (!selected) return
-  cabinTypeInput.value = selected.value
-}
-
-const normalizeCabinType = (value?: number | null) => {
-  if (value === 1 || value === 2 || value === 3) {
-    return value
-  }
-  return 3
-}
 
 const isSelectionClosed = () => {
   const deadline = currentFlight.value?.selectionDeadline
   if (!deadline) return false
-  const timestamp = new Date(String(deadline)).getTime()
+  const normalized = String(deadline).replace(' ', 'T')
+  const timestamp = new Date(normalized).getTime()
   if (Number.isNaN(timestamp)) return false
   return Date.now() > timestamp
 }
 
-const hasManualSelectionForCurrentFlight = () => {
-  const flightId = currentFlight.value?.id
-  if (!flightId) return false
-  return recommendationHistory.value.some((item) => {
-    const row = item as Record<string, unknown>
-    const rowFlightIdRaw = row.flightId ?? row.flight_id
-    const rowFlightId = Number(rowFlightIdRaw)
-    if (Number.isNaN(rowFlightId) || rowFlightId !== flightId) return false
-    const feedback = String(row.userFeedback ?? row.user_feedback ?? '')
-    return feedback.startsWith('MANUAL_SELECTED')
+const selectionProgress = computed(() => {
+  return getFlightMealSelectionProgress({
+    history: recommendationHistory.value,
+    flightId: currentFlight.value?.id,
+    mealCount: currentFlight.value?.mealCount,
   })
-}
+})
 
 const selectionStatusText = computed(() => {
   if (!currentFlight.value) return '未选择航班'
+  const progress = selectionProgress.value
+  const progressText = `${progress.completedCount}/${progress.totalMealCount} 餐`
+
   if (!isSelectionClosed()) {
-    return hasManualSelectionForCurrentFlight() ? '已预选（截止前可修改）' : '未预选（截止前可选择）'
+    if (progress.isFullySelected) return `已完成全部预选（${progressText}）`
+    if (progress.completedCount > 0) return `部分完成（${progressText}，请继续预选）`
+    return `未开始预选（${progressText}）`
   }
-  return hasManualSelectionForCurrentFlight() ? '已预选，等待系统配餐' : '未预选，系统将自动配餐'
+
+  if (progress.isFullySelected) return `预选时间已截止（已预选 ${progressText}，按已选配餐）`
+  if (progress.completedCount > 0) return `预选时间已截止（已预选 ${progressText}，剩余自动配餐）`
+  return '预选时间已截止（未预选，系统自动配餐）'
 })
 
 const isValidIdCard = (value: string) => {
@@ -197,7 +172,6 @@ const loadPageData = async () => {
     const res = await getUserInfoAPI(userStore.profile!.id)
     user.value = res.data || {id: 0, openid: ''}
     idNumberInput.value = user.value.idNumber || ''
-    cabinTypeInput.value = normalizeCabinType(user.value.cabinType)
     if (user.value.idNumber) {
       await Promise.all([loadCurrentFlight(), loadCandidates(), loadSelectionHistory()])
       const pendingRes = await getPendingRatingAPI()
@@ -223,23 +197,8 @@ const saveIdNumberAndLoad = async () => {
   await updateUserAPI({
     id: userStore.profile!.id,
     idNumber: value,
-    cabinType: normalizeCabinType(cabinTypeInput.value),
   })
   uni.showToast({title: '初始化成功', icon: 'none'})
-  await loadPageData()
-}
-
-const saveCabinType = async () => {
-  if (!ensureLogin()) return
-  if (!user.value.idNumber) {
-    uni.showToast({title: '请先完成身份证初始化', icon: 'none'})
-    return
-  }
-  await updateUserAPI({
-    id: userStore.profile!.id,
-    cabinType: normalizeCabinType(cabinTypeInput.value),
-  })
-  uni.showToast({title: '舱型已更新', icon: 'none'})
   await loadPageData()
 }
 

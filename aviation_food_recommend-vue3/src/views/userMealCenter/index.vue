@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { getUserMealSelectionListAPI } from '@/api/userMeal'
-import type { UserMealSelectionItem } from '@/types/aviation'
+import { getUserMealSelectionListAPI, getUserMealStatisticsAPI } from '@/api/userMeal'
+import type { UserMealSelectionItem, UserMealStatistics } from '@/types/aviation'
 
 const loading = ref(false)
+const statisticsLoading = ref(false)
 const list = ref<UserMealSelectionItem[]>([])
 const queryForm = ref({
   flightNumber: '',
@@ -11,8 +12,23 @@ const queryForm = ref({
   idNumber: '',
   mealSelection: 'all',
 })
+
+const createEmptyStatistics = (): UserMealStatistics => ({
+  flightNumber: '',
+  totalOrders: 0,
+  selectedOrders: 0,
+  unselectedOrders: 0,
+  unrecordedOrders: 0,
+  totalDishDemand: 0,
+  distinctDishCount: 0,
+  dishDemandList: [],
+})
+
+const statistics = ref<UserMealStatistics>(createEmptyStatistics())
 const page = ref(1)
 const pageSize = ref(10)
+
+const hasFlightNumber = computed(() => !!queryForm.value.flightNumber.trim())
 
 const filteredList = computed(() => {
   if (queryForm.value.mealSelection === 'all') return list.value
@@ -27,6 +43,25 @@ const pagedList = computed(() => {
   return filteredList.value.slice(start, start + pageSize.value)
 })
 
+const loadStatistics = async () => {
+  const flightNumber = queryForm.value.flightNumber.trim()
+  if (!flightNumber) {
+    statistics.value = createEmptyStatistics()
+    return
+  }
+  statisticsLoading.value = true
+  const { data: res } = await getUserMealStatisticsAPI(flightNumber)
+  statisticsLoading.value = false
+  if (res.code !== 0) {
+    return
+  }
+  statistics.value = {
+    ...createEmptyStatistics(),
+    ...(res.data || {}),
+    dishDemandList: res.data?.dishDemandList || [],
+  }
+}
+
 const loadData = async () => {
   loading.value = true
   const { data: res } = await getUserMealSelectionListAPI({
@@ -35,8 +70,10 @@ const loadData = async () => {
     idNumber: queryForm.value.idNumber?.trim() || undefined,
   })
   loading.value = false
-  if (res.code !== 0) return
-  list.value = res.data || []
+  if (res.code === 0) {
+    list.value = res.data || []
+  }
+  await loadStatistics()
 }
 
 const search = async () => {
@@ -56,6 +93,7 @@ const reset = async () => {
     mealSelection: 'all',
   }
   page.value = 1
+  statistics.value = createEmptyStatistics()
   await loadData()
 }
 
@@ -137,6 +175,69 @@ onMounted(loadData)
         </el-form-item>
       </el-form>
 
+      <el-alert
+        v-if="!hasFlightNumber"
+        title="输入航班号后可查看本航班餐食需求统计"
+        type="info"
+        :closable="false"
+        class="stats-hint"
+      />
+
+      <div v-else class="stats-wrapper" v-loading="statisticsLoading">
+        <el-row :gutter="12" class="stats-cards">
+          <el-col :xs="12" :sm="8" :md="4">
+            <el-card class="stats-card" shadow="hover">
+              <div class="stats-label">选餐单总数</div>
+              <div class="stats-value">{{ statistics.totalOrders }}</div>
+            </el-card>
+          </el-col>
+          <el-col :xs="12" :sm="8" :md="4">
+            <el-card class="stats-card" shadow="hover">
+              <div class="stats-label">已记录餐食</div>
+              <div class="stats-value">{{ statistics.selectedOrders }}</div>
+            </el-card>
+          </el-col>
+          <el-col :xs="12" :sm="8" :md="4">
+            <el-card class="stats-card" shadow="hover">
+              <div class="stats-label">未记录餐食</div>
+              <div class="stats-value">{{ statistics.unselectedOrders }}</div>
+            </el-card>
+          </el-col>
+          <el-col :xs="12" :sm="8" :md="4">
+            <el-card class="stats-card" shadow="hover">
+              <div class="stats-label">总餐食需求数</div>
+              <div class="stats-value">{{ statistics.totalDishDemand }}</div>
+            </el-card>
+          </el-col>
+          <el-col :xs="12" :sm="8" :md="4">
+            <el-card class="stats-card" shadow="hover">
+              <div class="stats-label">涉及餐食种类</div>
+              <div class="stats-value">{{ statistics.distinctDishCount }}</div>
+            </el-card>
+          </el-col>
+          <el-col :xs="12" :sm="8" :md="4">
+            <el-card class="stats-card" shadow="hover">
+              <div class="stats-label">未记录明细单</div>
+              <div class="stats-value">{{ statistics.unrecordedOrders }}</div>
+            </el-card>
+          </el-col>
+        </el-row>
+
+        <el-card class="stats-detail" shadow="never">
+          <template #header>
+            <div class="stats-detail-header">本航班餐食需求明细</div>
+          </template>
+          <el-table :data="statistics.dishDemandList" stripe size="small" max-height="260">
+            <el-table-column type="index" width="56" label="#" />
+            <el-table-column prop="dishName" label="餐食名称" min-width="220" />
+            <el-table-column prop="demandCount" label="需求份数" width="120" />
+            <template #empty>
+              <el-empty description="本航班暂无可统计的餐食需求" />
+            </template>
+          </el-table>
+        </el-card>
+      </div>
+
       <el-table :data="pagedList" border stripe v-loading="loading">
         <el-table-column prop="orderNumber" label="选餐单号" min-width="170" />
         <el-table-column prop="flightNumber" label="航班号" width="120" />
@@ -190,5 +291,42 @@ onMounted(loadData)
 .table-pagination {
   margin-top: 14px;
   justify-content: flex-end;
+}
+
+.stats-hint {
+  margin-bottom: 12px;
+}
+
+.stats-wrapper {
+  margin-bottom: 14px;
+}
+
+.stats-cards {
+  margin-bottom: 10px;
+}
+
+.stats-card {
+  border-radius: 10px;
+}
+
+.stats-label {
+  color: #909399;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.stats-value {
+  color: #303133;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.stats-detail {
+  border: 1px solid #ebeef5;
+}
+
+.stats-detail-header {
+  font-weight: 600;
 }
 </style>

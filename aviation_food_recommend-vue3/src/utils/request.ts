@@ -1,5 +1,4 @@
 import axios from 'axios'
-// import { useRouter } from 'vue-router'   // 这个方法是写在组件里的，不是这里的 request.ts !
 import router from '@/router'
 import { ElMessage } from 'element-plus'
 import { useUserInfoStore } from '@/store'

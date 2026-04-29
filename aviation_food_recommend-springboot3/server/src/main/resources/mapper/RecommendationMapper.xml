@@ -62,10 +62,14 @@
     </insert>
 
     <select id="listHistory" resultType="java.util.HashMap">
-        select id, user_id, flight_id, recommended_dishes, algorithm_type, user_rating, user_feedback, create_time
-        from recommendation_log
-        where user_id = #{userId}
-        order by create_time desc
+        select rl.id, rl.user_id, rl.flight_id, rl.recommended_dishes, rl.algorithm_type,
+               rl.user_rating, rl.user_feedback, rl.create_time,
+               fi.flight_number, fi.departure, fi.destination,
+               fi.departure_time, fi.arrival_time
+        from recommendation_log rl
+        left join flight_info fi on fi.id = rl.flight_id
+        where rl.user_id = #{userId}
+        order by rl.create_time desc
         limit 20
     </select>
 
@@ -184,6 +188,16 @@
                     and fr.rating_status = 'SUBMITTED'
         </update>
 
+    <select id="listDishFlavorTagsByIds" resultType="java.util.HashMap">
+        select id as dishId,
+               flavor_tags as flavorTags
+        from dish
+        where id in
+        <foreach collection="dishIds" item="dishId" open="(" separator="," close=")">
+            #{dishId}
+        </foreach>
+    </select>
+
     <select id="listRecentLogs" resultType="java.util.HashMap">
         select user_id as userId,
                flight_id as flightId,
@@ -195,7 +209,14 @@
         where user_id is not null
           and (#{days} is null or create_time &gt;= date_sub(now(), interval #{days} day))
         order by create_time desc
-        limit 8000
+        <choose>
+            <when test="limit != null and limit > 0">
+                limit #{limit}
+            </when>
+            <otherwise>
+                limit 8000
+            </otherwise>
+        </choose>
     </select>
 
     <select id="topDishes" resultType="java.util.HashMap">
@@ -469,5 +490,42 @@
     <delete id="deleteRatingTask">
         delete from flight_service_rating where id = #{id}
     </delete>
+
+    <select id="listRatingHistory" resultType="java.util.HashMap">
+        select fr.id as ratingTaskId,
+               fr.source_log_id as logId,
+               fr.flight_id as flightId,
+               fr.rating_status as ratingStatus,
+               fr.rating_score as ratingScore,
+               fr.defer_count as deferCount,
+               fr.submitted_at as submittedAt,
+               fi.flight_number as flightNumber,
+               fi.departure,
+               fi.destination
+        from flight_service_rating fr
+        inner join flight_info fi on fi.id = fr.flight_id
+        where fr.user_id = #{userId}
+          and fr.rating_status = 'SUBMITTED'
+        order by fr.submitted_at desc
+    </select>
+
+    <select id="getLogById" resultType="java.util.HashMap">
+        select id, user_id as userId, flight_id as flightId,
+               recommended_dishes as recommendedDishes,
+               algorithm_type as algorithmType,
+               user_rating as userRating,
+               user_feedback as userFeedback,
+               create_time as createTime
+        from recommendation_log
+        where id = #{id}
+    </select>
+
+    <select id="resolveDishNames" resultType="java.util.HashMap">
+        select id, name from dish
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 
 </mapper>

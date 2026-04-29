@@ -33,6 +33,11 @@ const menuList = [
     icon: 'Food',
   },
   {
+    title: '用户管理中心',
+    path: '/user-center',
+    icon: 'UserFilled',
+  },
+  {
     title: '用户餐食中心',
     path: '/user-meal-center',
     icon: 'User',

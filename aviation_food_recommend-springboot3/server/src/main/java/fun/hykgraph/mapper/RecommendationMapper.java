@@ -44,7 +44,10 @@ public interface RecommendationMapper {
                                    @Param("flightId") Integer flightId,
                                    @Param("rating") Integer rating);
 
-    List<Map<String, Object>> listRecentLogs(@Param("days") Integer days);
+    List<Map<String, Object>> listDishFlavorTagsByIds(@Param("dishIds") List<Integer> dishIds);
+
+    List<Map<String, Object>> listRecentLogs(@Param("days") Integer days,
+                                             @Param("limit") Integer limit);
 
     List<Map<String, Object>> topDishes(@Param("limit") Integer limit,
                                         @Param("startTime") LocalDateTime startTime,
@@ -99,4 +102,10 @@ public interface RecommendationMapper {
                              @Param("now") LocalDateTime now);
 
     Integer deleteRatingTask(@Param("id") Long id);
+
+    List<Map<String, Object>> listRatingHistory(@Param("userId") Integer userId);
+
+    Map<String, Object> getLogById(@Param("id") Long id);
+
+    List<Map<String, Object>> resolveDishNames(@Param("ids") List<Integer> ids);
 }

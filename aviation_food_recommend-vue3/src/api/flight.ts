@@ -1,6 +1,7 @@
 import request from '@/utils/request'
 import type {
   AnnouncementUpsertPayload,
+  ExistingPassengerCandidateItem,
   FlightMealBindingUpsertPayload,
   FlightPassengerUpsertPayload,
   FlightUpsertPayload,
@@ -45,11 +46,31 @@ export const getFlightPassengersAPI = (flightId: number) => {
   })
 }
 
+export const searchFlightPassengersAPI = (params: {
+  flightNumber?: string
+  name?: string
+  idNumber?: string
+}) => {
+  return request<ApiResult<FlightPassengerItem[]>>({
+    url: '/flight/passengers',
+    method: 'get',
+    params,
+  })
+}
+
 export const addFlightPassengerAPI = (data: FlightPassengerUpsertPayload) => {
   return request<ApiResult<null>>({
     url: '/flight/passenger',
     method: 'post',
     data,
+  })
+}
+
+export const searchExistingFlightPassengersAPI = (params: { keyword?: string; limit?: number }) => {
+  return request<ApiResult<ExistingPassengerCandidateItem[]>>({
+    url: '/flight/passenger/search',
+    method: 'get',
+    params,
   })
 }
 

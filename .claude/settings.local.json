@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vue-tsc *)",
+      "Bash(mvn compile *)",
+      "Bash(mysql -u root -p123456 aviation_food_recommend -e ' *)"
+    ]
+  }
+}

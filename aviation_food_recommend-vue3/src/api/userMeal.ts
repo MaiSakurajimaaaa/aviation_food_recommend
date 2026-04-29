@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { UserMealSelectionItem, UserMealSelectionQuery } from '@/types/aviation'
+import type { UserMealSelectionItem, UserMealSelectionQuery, UserMealStatistics } from '@/types/aviation'
 import type { ApiResult } from '@/types/http'
 
 export const getUserMealSelectionListAPI = (params: UserMealSelectionQuery) => {
@@ -7,5 +7,13 @@ export const getUserMealSelectionListAPI = (params: UserMealSelectionQuery) => {
     url: '/user-meal/list',
     method: 'get',
     params,
+  })
+}
+
+export const getUserMealStatisticsAPI = (flightNumber: string) => {
+  return request<ApiResult<UserMealStatistics>>({
+    url: '/user-meal/statistics',
+    method: 'get',
+    params: { flightNumber },
   })
 }

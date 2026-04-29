@@ -34,9 +34,6 @@
       <picker mode="selector" :range="mealTypeOptions" range-key="label" @change="onMealTypeChange">
         <view class="picker">{{ selectedMealTypeLabel }}</view>
       </picker>
-      <view class="title small">补充说明</view>
-      <input v-model="dietaryNotes" placeholder="如：少油、不要香菜、偏热食" maxlength="60" />
-      <view class="tip note">说明将用于推荐解释与后厨备餐备注。</view>
       <button type="button" class="submit" :disabled="submitting" @click="save">{{ submitting ? '保存中...' : '保存偏好并进入推荐' }}</button>
       <button type="button" class="skip" v-if="isFirstEntry" :disabled="submitting" @click="skipForNow">先跳过口味，直接体验推荐</button>
     </view>
@@ -56,7 +53,6 @@ const mealTypeOptions = MEAL_TYPE_OPTIONS
 
 const likedFlavors = ref<string[]>([])
 const mealType = ref('2')
-const dietaryNotes = ref('')
 const submitting = ref(false)
 
 const selectedMealTypeLabel = computed(() => {
@@ -94,7 +90,6 @@ const loadData = async () => {
   likedFlavors.value = parseJsonArray(res.data.flavorPreferences)
   const mealTypeList = parseJsonArray(res.data.mealTypePreferences)
   mealType.value = mealTypeList[0] || '2'
-  dietaryNotes.value = res.data.dietaryNotes || ''
 }
 
 const save = async () => {
@@ -104,7 +99,6 @@ const save = async () => {
   const payload: UserPreference = {
     mealTypePreferences: JSON.stringify([mealType.value]),
     flavorPreferences: JSON.stringify(likedFlavors.value),
-    dietaryNotes: dietaryNotes.value,
   }
   submitting.value = true
   try {
@@ -112,7 +106,7 @@ const save = async () => {
     const message = likedFlavors.value.length ? '偏好已保存' : '已跳过口味，已启用冷启动推荐'
     uni.showToast({ title: message, icon: 'none' })
     setTimeout(() => {
-      uni.redirectTo({ url: '/pages/recommendation/recommendation' })
+      uni.switchTab({ url: '/pages/recommendation/recommendation' })
     }, 300)
   } finally {
     submitting.value = false
@@ -144,16 +138,13 @@ onShow(() => {
 .hero-desc { font-size: 24rpx; opacity: 0.95; line-height: 1.7; }
 .hero-pill { margin-top: 14rpx; display: inline-block; padding: 6rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; background: rgba(255, 255, 255, 0.22); border: 1rpx solid rgba(255, 255, 255, 0.38); }
 .title { font-size: 30rpx; font-weight: 700; color: #114477; margin-bottom: 16rpx; }
-.title.small { margin-top: 18rpx; }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
 .status-badge { padding: 6rpx 14rpx; border-radius: 999rpx; background: #eaf6ff; color: #00aaff; font-size: 22rpx; }
 .tip { color: #6a7c92; font-size: 24rpx; line-height: 1.7; }
-.tip.note { margin-top: 10rpx; }
 .tag-wrap { display: flex; flex-wrap: wrap; gap: 12rpx; }
 .tag { padding: 10rpx 20rpx; border-radius: 28rpx; border: 1px solid #99dfff; color: #1188cc; background: #f3fbff; font-size: 24rpx; }
 .tag.active { background: #00aaff; border-color: #00aaff; color: #fff; }
 .picker { border: 1px solid #dbe8f5; border-radius: 12rpx; padding: 16rpx; color: #333; }
-input { border: 1px solid #dbe8f5; border-radius: 12rpx; padding: 16rpx; margin-top: 10rpx; }
 .submit { margin-top: 24rpx; background: #00aaff; color: #fff; border-radius: 12rpx; }
 .skip { margin-top: 14rpx; background: #eef8ff; color: #1188cc; border-radius: 12rpx; border: 1px solid #99dfff; }
 </style>

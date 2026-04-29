@@ -73,6 +73,8 @@ public class UserController {
     public Result<Void> update(@RequestBody UserDTO userDTO){
         Integer currentUserId = getCurrentUserId();
         userDTO.setId(currentUserId);
+        // Cabin type is managed by admin-side workflow only.
+        userDTO.setCabinType(null);
         log.info("更新用户信息，currentUserId:{}", currentUserId);
         userService.update(userDTO);
         return Result.success();

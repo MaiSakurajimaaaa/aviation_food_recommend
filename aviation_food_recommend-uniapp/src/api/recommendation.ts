@@ -77,3 +77,36 @@ export const deferRecommendationAPI = (flightId?: number) => {
     },
   })
 }
+
+export const getRatingHistoryAPI = () => {
+  return http<Record<string, unknown>[]>({
+    method: 'GET',
+    url: '/user/recommendation/rating-history',
+  })
+}
+
+export const getHistoryLogDetailAPI = (logId: number) => {
+  return http<Record<string, any>>({
+    method: 'GET',
+    url: `/user/recommendation/history/${logId}`,
+    suppressErrorToast: true,
+  })
+}
+
+export const getRecommendationHistoryBreakdownAPI = (logId: number, timeout = 30000) => {
+  return http<Record<string, any>>({
+    method: 'GET',
+    url: `/user/recommendation/history/${logId}/breakdown`,
+    timeout,
+    suppressErrorToast: true,
+  })
+}
+
+export const resolveDishNamesAPI = (ids: number[]) => {
+  return http<Record<number, string>>({
+    method: 'GET',
+    url: '/user/recommendation/dishes/resolve',
+    data: { ids: ids.join(',') },
+    suppressErrorToast: true,
+  })
+}

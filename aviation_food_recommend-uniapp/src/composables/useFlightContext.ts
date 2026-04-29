@@ -10,6 +10,7 @@ export const useFlightContext = () => {
     if (!ensureLogin()) {
       return {
         ok: false,
+        needIdentity: true,
         currentFlight: null as FlightInfo | null,
         candidateFlights: [] as FlightInfo[],
       }
@@ -20,6 +21,7 @@ export const useFlightContext = () => {
     if (!idNumber) {
       return {
         ok: false,
+        needIdentity: true,
         currentFlight: null as FlightInfo | null,
         candidateFlights: [] as FlightInfo[],
       }
@@ -27,7 +29,20 @@ export const useFlightContext = () => {
 
     const [currentRes, candidateRes] = await Promise.all([getCurrentFlightAPI(), getFlightListAPI(idNumber)])
     let currentFlight = currentRes.data || null
-    const candidateFlights = candidateRes.data || []
+    let candidateFlights = candidateRes.data || []
+
+    // 过滤已到达的航班
+    const now = new Date()
+    const isFlightEnded = (f: FlightInfo | null) => {
+      if (!f?.arrivalTime) return false
+      const normalized = String(f.arrivalTime).replace(' ', 'T')
+      const t = new Date(normalized)
+      return !isNaN(t.getTime()) && t <= now
+    }
+    candidateFlights = candidateFlights.filter(f => !isFlightEnded(f))
+    if (currentFlight && isFlightEnded(currentFlight)) {
+      currentFlight = null
+    }
 
     if (!currentFlight && candidateFlights.length > 0) {
       const defaultFlight = candidateFlights[0]
@@ -37,6 +52,7 @@ export const useFlightContext = () => {
 
     return {
       ok: !!currentFlight,
+      needIdentity: false,
       currentFlight,
       candidateFlights,
     }

@@ -23,7 +23,7 @@
       <view class="score-track">
         <view class="score-fill" :style="{ width: `${Math.round((meal?.score || 0) * 100)}%` }"></view>
       </view>
-      <view class="meta">匹配度：{{ Math.round((meal?.score || 0) * 100) }}%</view>
+      <view class="meta">匹配度：{{ formatScorePercent(meal?.score) }}%</view>
       <view class="meta">餐型：{{ formatMealType(meal?.mealType) }}</view>
       <view class="meta">口味：{{ formatFlavor(meal?.flavorTags) }}</view>
       <view class="meta">推荐依据：{{ meal?.explainReason || '基础营养均衡推荐' }}</view>
@@ -61,6 +61,11 @@ const formatMealType = (value?: number) => {
 const formatFlavor = (value?: string) => {
   if (!value) return '清淡'
   return String(value).replace(/[\[\]"]/g, '')
+}
+
+const formatScorePercent = (score?: number) => {
+  const safe = Number(score || 0)
+  return (safe * 100).toFixed(1)
 }
 
 const formatDeadline = (value?: string) => {
