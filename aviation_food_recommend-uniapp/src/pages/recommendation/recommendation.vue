@@ -506,6 +506,10 @@ const loadData = async () => {
       return
     }
     await loadRecommendationData()
+  } catch {
+    list.value = []
+    ranking.value = []
+    // http utility already shows error toast; prevent unhandled rejection
   } finally {
     loading.value = false
   }

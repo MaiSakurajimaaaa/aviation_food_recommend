@@ -1,6 +1,5 @@
 import request from '@/utils/request' // 引入自定义的axios函数
 import type { DishPageQuery, DishUpsertPayload } from '@/types/aviation'
-import type { DishItem } from '@/types/aviation'
 import type { ApiPageResult, ApiResult } from '@/types/http'
 
 /**
@@ -26,18 +25,6 @@ export const getDishPageListAPI = (params: DishPageQuery) => {
     url: '/dish/page',
     method: 'get',
     params
-  })
-}
-
-/**
- * 根据id获取菜品信息，用于回显
- * @param id 菜品id
- * @returns
- */
-export const getDishByIdAPI = (id: number) => {
-  return request<ApiResult<any>>({
-    url: `/dish/${id}`,
-    method: 'get'
   })
 }
 

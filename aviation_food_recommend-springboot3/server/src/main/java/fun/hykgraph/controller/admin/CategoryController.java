@@ -70,9 +70,9 @@ public class CategoryController {
      * @return
      */
     @PutMapping
-    public Result udpate(@RequestBody CategoryDTO categoryDTO){
+    public Result update(@RequestBody CategoryDTO categoryDTO){
         log.info("拿到更新后的信息，{}", categoryDTO);
-        categoryService.udpate(categoryDTO);
+        categoryService.update(categoryDTO);
         return Result.success();
     }
 

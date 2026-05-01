@@ -16,11 +16,11 @@ import fun.hykgraph.vo.PendingRatingInfoVO;
 import fun.hykgraph.vo.RecommendationDishVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -41,11 +41,9 @@ public class RecommendationController {
     private static final String RATING_STATUS_PENDING = "PENDING";
     private static final long RATING_EXPIRE_DAYS = 7;
     private static final long RATING_DEFER_HOURS = 24;
-    private static final int DEFAULT_MEAL_ORDER = 1;
     private static final int CABIN_FIRST = 1;
     private static final int CABIN_BUSINESS = 2;
     private static final int CABIN_ECONOMY = 3;
-    private static final List<String> BREAKFAST_KEYWORDS = Arrays.asList("粥", "包", "馒头", "豆浆", "油条", "面", "面包", "三明治", "吐司", "蛋");
 
     @Autowired
     private UserMapper userMapper;
@@ -147,7 +145,7 @@ public class RecommendationController {
         if (flightId == null) {
             return Result.error("请先绑定航班");
         }
-        FlightInfo flightInfo = flightId == null ? null : flightInfoMapper.getById(flightId);
+        FlightInfo flightInfo = flightInfoMapper.getById(flightId);
         int safeMealOrder = resolveMealOrder(mealOrder, flightInfo == null ? null : flightInfo.getMealCount());
         Integer mealTypeParam = parseMealType(mealType);
         String flavorParam = normalizeParam(flavor);
@@ -169,7 +167,7 @@ public class RecommendationController {
             return Result.success(list);
         }
 
-        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(180, 5000);
+        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
         UserPreference preference = userPreferenceMapper.getByUserId(userId);
         Set<Integer> prefMealTypes = parsePreferenceMealTypes(preference == null ? null : preference.getMealTypePreferences());
         Set<String> prefFlavors = new HashSet<>(parseFlavorList(preference == null ? null : preference.getFlavorPreferences()));
@@ -199,8 +197,7 @@ public class RecommendationController {
         int idx = 0;
         for (RecommendationDishVO item : list) {
             double pmfupScore = calculatePmfupScore(item, prefMealTypes, prefFlavors, flightId, context, userId,
-                    flightInfo == null ? null : flightInfo.getDepartureTime(), safeMealOrder,
-                    flightInfo == null ? null : flightInfo.getMealCount());
+                    flightInfo == null ? null : flightInfo.getDepartureTime(), safeMealOrder);
             double prmidmScore = calculatePrmidmScore(userId, item.getDishId(), context);
             double ammbcScore = calculateAmmbcScore(userId, item.getDishId(), context);
 
@@ -358,51 +355,64 @@ public class RecommendationController {
             return Result.error("该航班预选已截止，系统将自动分配餐食");
         }
         int safeMealOrder = resolveMealOrder(params.get("mealOrder"), flightInfo.getMealCount());
-        Integer existed = recommendationMapper.existsMealSelection(userId, flightInfo.getId(), safeMealOrder);
         LocalDateTime now = LocalDateTime.now();
-        boolean modified = existed != null && existed > 0;
 
-        Integer previousDishId = null;
-        if (modified) {
-            Map<String, Object> latest = recommendationMapper.latestManualSelection(userId, flightInfo.getId(), safeMealOrder);
-            previousDishId = extractDishIdFromLatestSelection(latest);
-            if (previousDishId != null && Objects.equals(previousDishId, dishId)) {
-                recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), safeMealOrder, MANUAL_SELECTION_CONFIRMED_STATUS, now);
-                Map<String, Object> response = new HashMap<>();
-                response.put("flightId", flightInfo.getId());
-                response.put("dishId", dishId);
-                response.put("mealOrder", safeMealOrder);
-                response.put("selectedAt", now);
-                response.put("modified", true);
-                response.put("selectionDeadline", flightInfo.getSelectionDeadline());
-                return Result.success(response);
-            }
+        // Fetch previous selection for stock handling and duplicate detection
+        Map<String, Object> latest = recommendationMapper.latestManualSelection(userId, flightInfo.getId(), safeMealOrder);
+        Integer previousDishId = extractDishIdFromLatestSelection(latest);
+        boolean existed = previousDishId != null;
+
+        // Same dish re-selection: just update status
+        if (existed && Objects.equals(previousDishId, dishId)) {
+            recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), safeMealOrder, MANUAL_SELECTION_CONFIRMED_STATUS, now);
+            Map<String, Object> response = new HashMap<>();
+            response.put("flightId", flightInfo.getId());
+            response.put("dishId", dishId);
+            response.put("mealOrder", safeMealOrder);
+            response.put("selectedAt", now);
+            response.put("modified", true);
+            response.put("selectionDeadline", flightInfo.getSelectionDeadline());
+            return Result.success(response);
         }
 
+        // Decrease stock for new dish (before insert/update to stay atomic with rollback)
         Integer affected = dishMapper.decreaseStockAndAutoDisable(dishId, 1);
         if (affected == null || affected == 0) {
-            dishMapper.disableIfOutOfStock(dishId);
             return Result.error("该餐食库存不足，请重新选择");
         }
 
-        if (modified) {
+        boolean modified;
+        if (existed) {
+            // Update existing selection
             if (previousDishId != null) {
                 dishMapper.increaseStockAndEnable(previousDishId, 1);
             }
             recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), safeMealOrder, MANUAL_SELECTION_CONFIRMED_STATUS, now);
             insertManualSelectionLog(userId, flightInfo.getId(), dishId, safeMealOrder, "MANUAL_SELECTED_UPDATE");
+            modified = true;
         } else {
-            Map<String, Object> selection = new HashMap<>();
-            selection.put("number", "SEL" + System.currentTimeMillis() + userId);
-            selection.put("status", MANUAL_SELECTION_CONFIRMED_STATUS);
-            selection.put("userId", userId);
-            selection.put("flightId", flightInfo.getId());
-            selection.put("mealOrder", safeMealOrder);
-            selection.put("seatNumber", "USER");
-            selection.put("createTime", now);
-            selection.put("updateTime", now);
-            recommendationMapper.insertMealSelection(selection);
-            insertManualSelectionLog(userId, flightInfo.getId(), dishId, safeMealOrder, "MANUAL_SELECTED");
+            try {
+                Map<String, Object> selection = new HashMap<>();
+                selection.put("number", "SEL" + System.currentTimeMillis() + userId);
+                selection.put("status", MANUAL_SELECTION_CONFIRMED_STATUS);
+                selection.put("userId", userId);
+                selection.put("flightId", flightInfo.getId());
+                selection.put("mealOrder", safeMealOrder);
+                selection.put("seatNumber", "USER");
+                selection.put("createTime", now);
+                selection.put("updateTime", now);
+                recommendationMapper.insertMealSelection(selection);
+                insertManualSelectionLog(userId, flightInfo.getId(), dishId, safeMealOrder, "MANUAL_SELECTED");
+                modified = false;
+            } catch (DuplicateKeyException e) {
+                // Concurrent insert: fall through to update path
+                if (previousDishId != null) {
+                    dishMapper.increaseStockAndEnable(previousDishId, 1);
+                }
+                recommendationMapper.updateMealSelectionStatusAndUpdateTime(userId, flightInfo.getId(), safeMealOrder, MANUAL_SELECTION_CONFIRMED_STATUS, now);
+                insertManualSelectionLog(userId, flightInfo.getId(), dishId, safeMealOrder, "MANUAL_SELECTED_UPDATE");
+                modified = true;
+            }
         }
 
         Map<String, Object> response = new HashMap<>();
@@ -444,8 +454,10 @@ public class RecommendationController {
             }
         }
 
+        Integer mealOrder = params.get("mealOrder");
+        int safeMealOrder = resolveMealOrder(mealOrder, null);
         recommendationMapper.syncSubmittedLogRating(userId, flightId, rating);
-        recommendationMapper.updateLatestManualRating(userId, flightId, DEFAULT_MEAL_ORDER, rating);
+        recommendationMapper.updateLatestManualRating(userId, flightId, safeMealOrder, rating);
 
         return Result.success();
     }
@@ -603,7 +615,7 @@ public class RecommendationController {
             }
         }
 
-        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(180, 5000);
+        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
         InteractionContext context = buildInteractionContext(recentLogs, voMap, dishNameIdMap);
 
         double[] fusionWeights = resolveFusionWeights(userId, context);
@@ -615,7 +627,7 @@ public class RecommendationController {
             row.put("dishName", vo != null && vo.getDishName() != null ? vo.getDishName() : ("餐食#" + did));
             if (vo != null) {
                 double pmfup = calculatePmfupScore(vo, prefMealTypes, prefFlavors, flightId, context, userId,
-                        flightInfo == null ? null : flightInfo.getDepartureTime(), null, null);
+                        flightInfo == null ? null : flightInfo.getDepartureTime(), null);
                 double prmidm = calculatePrmidmScore(userId, did, context);
                 double ammbc = calculateAmmbcScore(userId, did, context);
                 double fused = fusionWeights[0] * pmfup + fusionWeights[1] * prmidm + fusionWeights[2] * ammbc;
@@ -656,8 +668,7 @@ public class RecommendationController {
                                        InteractionContext context,
                                        Integer userId,
                                        LocalDateTime departureTime,
-                                       Integer mealOrder,
-                                       Integer mealCount) {
+                                       Integer mealOrder) {
         if (item == null || item.getDishId() == null) {
             return 0.0;
         }
@@ -675,16 +686,6 @@ public class RecommendationController {
             }
             if (matched > 0) {
                 prefScore += Math.min(0.35, 0.15 + matched * 0.10);
-            }
-        }
-
-        double timePrefScore = calculateTimePreferenceScore(item, departureTime, mealOrder);
-        prefScore = clamp01(prefScore * 0.72 + timePrefScore * 0.28);
-
-        if (mealOrder != null && mealCount != null && mealOrder >= mealCount && mealCount > 1
-                && item.getFlavorTags() != null) {
-            if (item.getFlavorTags().contains("清淡") || item.getFlavorTags().contains("低脂")) {
-                prefScore = clamp01(prefScore + 0.06);
             }
         }
 
@@ -870,81 +871,6 @@ public class RecommendationController {
             return new double[]{0.60, 0.25, 0.15};
         }
         return new double[]{pmfupRaw / total, prmidmRaw / total, ammbcRaw / total};
-    }
-
-    private double calculateTimePreferenceScore(Integer mealType) {
-        return calculateTimePreferenceScore(mealType, LocalTime.now());
-    }
-
-    private double calculateTimePreferenceScore(RecommendationDishVO item, LocalDateTime departureTime, Integer mealOrder) {
-        LocalTime referenceTime = resolveMealReferenceTime(departureTime, mealOrder);
-        double mealTypeScore = calculateTimePreferenceScore(item == null ? null : item.getMealType(), referenceTime);
-        if (item == null) {
-            return mealTypeScore;
-        }
-
-        if (mealOrder != null && mealOrder == 1 && referenceTime.isBefore(LocalTime.of(10, 30))) {
-            boolean breakfastSeries = isBreakfastSeriesDish(item.getDishName());
-            if (breakfastSeries) {
-                return clamp01(Math.max(mealTypeScore, 0.96));
-            }
-            return clamp01(mealTypeScore * 0.84);
-        }
-        return mealTypeScore;
-    }
-
-    private LocalTime resolveMealReferenceTime(LocalDateTime departureTime, Integer mealOrder) {
-        LocalTime base = departureTime == null ? LocalTime.now() : departureTime.toLocalTime();
-        int order = mealOrder == null || mealOrder < 1 ? 1 : mealOrder;
-        return base.plusHours((long) (order - 1) * 4);
-    }
-
-    private boolean isBreakfastSeriesDish(String dishName) {
-        if (dishName == null || dishName.trim().isEmpty()) {
-            return false;
-        }
-        String name = dishName.trim();
-        for (String keyword : BREAKFAST_KEYWORDS) {
-            if (name.contains(keyword)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private double calculateTimePreferenceScore(Integer mealType, LocalTime currentTime) {
-        if (mealType == null || currentTime == null) {
-            return 0.55;
-        }
-
-        LocalTime breakfastEnd = LocalTime.of(10, 30);
-        LocalTime lunchEnd = LocalTime.of(15, 0);
-        LocalTime dinnerEnd = LocalTime.of(21, 0);
-
-        // Explicitly bias early time windows toward breakfast dishes.
-        if (mealType == 1) {
-            if (currentTime.isBefore(breakfastEnd)) {
-                return 1.0;
-            }
-            if (currentTime.isBefore(lunchEnd)) {
-                return 0.82;
-            }
-            if (currentTime.isBefore(dinnerEnd)) {
-                return 0.64;
-            }
-            return 0.48;
-        }
-
-        if (currentTime.isBefore(breakfastEnd)) {
-            return 0.52;
-        }
-        if (currentTime.isBefore(lunchEnd)) {
-            return mealType == 2 ? 0.95 : 0.68;
-        }
-        if (currentTime.isBefore(dinnerEnd)) {
-            return mealType == 3 ? 0.93 : 0.70;
-        }
-        return mealType == 4 ? 0.90 : 0.66;
     }
 
     private double timeDecay(LocalDateTime time) {

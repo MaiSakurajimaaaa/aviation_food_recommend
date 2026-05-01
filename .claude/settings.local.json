@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npx vue-tsc *)",
       "Bash(mvn compile *)",
-      "Bash(mysql -u root -p123456 aviation_food_recommend -e ' *)"
+      "Bash(mysql -u root -p123456 aviation_food_recommend -e ' *)",
+      "Bash(git push *)",
+      "Bash(python -c ' *)",
+      "Bash(where pandoc *)",
+      "Bash(where unzip *)",
+      "Bash(pandoc \"d:\\\\\\\\Desktop\\\\\\\\毕设\\\\\\\\aviation_food_recommend\\\\\\\\docs\\\\\\\\模板\\\\\\\\任务书.docx\" -t plain --wrap=none)",
+      "Bash(pandoc \"d:\\\\\\\\Desktop\\\\\\\\毕设\\\\\\\\aviation_food_recommend\\\\\\\\docs\\\\\\\\模板\\\\\\\\22045309-胡屿科-开题报告.docx\" -t plain --wrap=none)"
     ]
   }
 }

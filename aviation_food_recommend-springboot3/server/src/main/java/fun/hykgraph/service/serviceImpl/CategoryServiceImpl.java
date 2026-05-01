@@ -64,7 +64,7 @@ public class CategoryServiceImpl implements CategoryService {
      * 更新分类信息
      * @param categoryDTO
      */
-    public void udpate(CategoryDTO categoryDTO) {
+    public void update(CategoryDTO categoryDTO) {
         Category category = new Category();
         BeanUtils.copyProperties(categoryDTO, category);
         categoryMapper.update(category);

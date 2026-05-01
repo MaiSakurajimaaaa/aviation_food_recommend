@@ -33,9 +33,6 @@ public interface DishMapper {
 
     List<Dish> getList(Dish dish);
 
-    @Select("select count(id) from dish where status = #{i}")
-    Integer getByStatus(int i);
-
     @Update("update dish set stock = stock - #{count}, status = if(stock - #{count} <= 0, 0, status) where id = #{dishId} and status = 1 and stock >= #{count}")
     Integer decreaseStockAndAutoDisable(@Param("dishId") Integer dishId, @Param("count") Integer count);
 

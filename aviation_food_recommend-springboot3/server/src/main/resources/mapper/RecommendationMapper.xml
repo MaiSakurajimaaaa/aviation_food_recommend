@@ -262,14 +262,6 @@
         (#{number}, #{status}, #{userId}, #{flightId}, #{mealOrder}, #{seatNumber}, #{createTime}, #{updateTime})
     </insert>
 
-        <update id="updateMealSelectionUpdateTime">
-                update meal_selection
-                set update_time = #{updateTime}
-                where user_id = #{userId}
-                    and flight_id = #{flightId}
-                    and meal_order = #{mealOrder}
-        </update>
-
     <update id="updateMealSelectionStatusAndUpdateTime">
         update meal_selection
         set status = #{status},
@@ -324,21 +316,6 @@
             ) latest
         )
     </update>
-
-    <select id="listExpiredFlights" resultType="java.util.HashMap">
-        select fi.id,
-               fi.flight_number,
-               fi.departure,
-               fi.destination,
-               fi.selection_deadline,
-               fi.departure_time
-        from flight_info fi
-        where fi.status = 1
-          and fi.selection_deadline is not null
-          and fi.selection_deadline &lt;= #{now}
-          and (fi.departure_time is null or fi.departure_time &gt;= #{now})
-        order by fi.selection_deadline asc
-    </select>
 
     <select id="listUsersWithoutSelectionByFlightId" resultType="java.util.HashMap">
         select u.id as userId,

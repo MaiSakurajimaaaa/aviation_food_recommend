@@ -182,6 +182,8 @@ const loadPageData = async () => {
       recommendationHistory.value = []
       pendingRatingList.value = []
     }
+  } catch {
+    // http utility already shows error toast; prevent unhandled rejection
   } finally {
     loading.value = false
   }

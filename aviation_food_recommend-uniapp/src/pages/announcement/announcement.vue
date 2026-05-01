@@ -77,6 +77,8 @@ const loadData = async () => {
     announcements.value = activeAnnouncements
     unreadCount.value = countUnreadAnnouncements(activeAnnouncements, readAt)
     markCurrentBatchAsRead()
+  } catch {
+    // http utility already shows error toast; prevent unhandled rejection
   } finally {
     loading.value = false
     uni.stopPullDownRefresh()

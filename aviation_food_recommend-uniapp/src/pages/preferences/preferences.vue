@@ -108,6 +108,8 @@ const save = async () => {
     setTimeout(() => {
       uni.switchTab({ url: '/pages/recommendation/recommendation' })
     }, 300)
+  } catch {
+    uni.showToast({ title: '保存失败，请重试', icon: 'none' })
   } finally {
     submitting.value = false
   }

@@ -18,7 +18,7 @@ public interface CategoryService {
     Category getById(Integer id);
     void onOff(Integer id);
 
-    void udpate(CategoryDTO categoryDTO);
+    void update(CategoryDTO categoryDTO);
 
     void delete(Integer id);
 
