@@ -9,7 +9,29 @@
       "Bash(where pandoc *)",
       "Bash(where unzip *)",
       "Bash(pandoc \"d:\\\\\\\\Desktop\\\\\\\\毕设\\\\\\\\aviation_food_recommend\\\\\\\\docs\\\\\\\\模板\\\\\\\\任务书.docx\" -t plain --wrap=none)",
-      "Bash(pandoc \"d:\\\\\\\\Desktop\\\\\\\\毕设\\\\\\\\aviation_food_recommend\\\\\\\\docs\\\\\\\\模板\\\\\\\\22045309-胡屿科-开题报告.docx\" -t plain --wrap=none)"
+      "Bash(pandoc \"d:\\\\\\\\Desktop\\\\\\\\毕设\\\\\\\\aviation_food_recommend\\\\\\\\docs\\\\\\\\模板\\\\\\\\22045309-胡屿科-开题报告.docx\" -t plain --wrap=none)",
+      "WebSearch",
+      "Bash(javap -p \"d:\\\\Desktop\\\\毕设\\\\aviation_food_recommend\\\\aviation_food_recommend-springboot3\\\\server\\\\target\\\\classes\\\\fun\\\\hykgraph\\\\controller\\\\user\\\\RecommendationController.class\")",
+      "Bash(python3 -c ' *)",
+      "Bash(python -c \"from docx import Document; doc=Document\\(r'd:\\\\Desktop\\\\毕设\\\\aviation_food_recommend\\\\docs\\\\初稿.docx'\\); [print\\(f'[P{i}] {p.text[:200]}'\\) for i,p in enumerate\\(doc.paragraphs\\) if p.text.strip\\(\\)]\")",
+      "Bash(python -c \"print\\('ok'\\)\")",
+      "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/模板/初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿_extracted.md\")",
+      "Bash(sort -t' ' -k2 -n)",
+      "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿_extracted.md\")",
+      "Bash(awk '{print \"[\" $2 \"] 出现\" $1 \"次\"}')",
+      "Bash(awk '{print \"[\"$2\"] \"$1\"次\"}')",
+      "Bash(python \"C:/Users/ySilence/.claude/skills/docx/scripts/office/unpack.py\" \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/初稿.docx\" \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/unpacked\")",
+      "Read(//c/Users/ySilence/.claude/skills/docx/**)",
+      "Bash(python scripts/office/unpack.py \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/初稿.docx\" \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/unpacked\")",
+      "Bash(mkdir -p \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/unpacked\")",
+      "Bash(unzip -o \"../初稿.docx\")",
+      "Bash(python)",
+      "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/unpacked/初稿\\(1\\).pdf\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿1_extracted.md\")",
+      "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿_check.md\")",
+      "mcp__zai-mcp-server__analyze_image",
+      "mcp__zai-mcp-server__understand_technical_diagram",
+      "Bash(ipconfig)",
+      "Bash(netstat -ano)"
     ]
   }
 }

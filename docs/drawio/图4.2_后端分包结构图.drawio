@@ -1,0 +1,114 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="后端分包结构图">
+    <mxGraphModel dx="1000" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===== 根项目 ===== -->
+        <mxCell id="root" value="aviation_food_recommend-springboot3（Maven多模块项目）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="40" width="460" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- 三根向下箭头 -->
+        <mxCell id="a1" style="endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="340" y="80" as="sourcePoint" /><mxPoint x="340" y="120" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="470" y="80" as="sourcePoint" /><mxPoint x="470" y="120" as="targetPoint" /></mxGeometry>
+        </mxCell>
+        <mxCell id="a3" style="endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="600" y="80" as="sourcePoint" /><mxPoint x="600" y="120" as="targetPoint" /></mxGeometry>
+        </mxCell>
+
+        <!-- ===== common 模块 ===== -->
+        <mxCell id="common" value="common（公共模块）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=12;fontStyle=1;verticalAlign=top;align=center;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="80" y="125" width="250" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" value="exception/      异常处理" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="95" y="158" width="220" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="properties/      JWT配置 · 微信配置" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="95" y="190" width="220" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="utils/     JWT工具 · 阿里云OSS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="95" y="222" width="220" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- ===== pojo 模块 ===== -->
+        <mxCell id="pojo" value="pojo（数据模型模块）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=12;fontStyle=1;verticalAlign=top;align=center;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="340" y="125" width="260" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p1" value="entity/      实体类（与数据库表映射）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="355" y="158" width="230" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="vo/      视图对象（API响应封装）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="355" y="190" width="230" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="dto/      数据传输对象（请求封装）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="355" y="222" width="230" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- ===== server 模块概览 ===== -->
+        <mxCell id="server" value="server（核心业务模块）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=12;fontStyle=1;verticalAlign=top;align=center;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="610" y="125" width="270" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="s0" value="config/      配置类 · 拦截器" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="158" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" value="controller/      控制器（admin + user）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="188" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="service/      业务逻辑实现" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="218" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="mapper/      数据访问（11个XML）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="248" width="240" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- server → 详细展开箭头 -->
+        <mxCell id="a4" style="endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="745" y="280" as="sourcePoint" /><mxPoint x="745" y="325" as="targetPoint" /></mxGeometry>
+        </mxCell>
+
+        <!-- ===== 详细展开区 ===== -->
+        <mxCell id="detail" value="server 模块核心包详细" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=13;fontStyle=1;verticalAlign=top;align=center;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="80" y="325" width="800" height="290" as="geometry" />
+        </mxCell>
+
+        <!-- controller/admin -->
+        <mxCell id="ca_title" value="controller/admin/" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="105" y="358" width="240" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="ca" value="EmployeeController（员工管理）&lt;br&gt;FlightController（航班管理）&lt;br&gt;DishController（菜品管理）&lt;br&gt;AnnouncementController（公告与推荐看板）&lt;br&gt;UserMealCenterController（用户选餐统计）&lt;br&gt;CategoryController（分类管理）&lt;br&gt;ShopController（营业状态）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="105" y="386" width="240" height="108" as="geometry" />
+        </mxCell>
+
+        <!-- controller/user -->
+        <mxCell id="cu_title" value="controller/user/" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="365" y="358" width="240" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="cu" value="UserController（用户信息与偏好）&lt;br&gt;RecommendationController（推荐引擎与评分）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="365" y="386" width="240" height="108" as="geometry" />
+        </mxCell>
+
+        <!-- mapper -->
+        <mxCell id="mp_title" value="mapper/（11个MyBatis映射接口）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="625" y="358" width="230" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="mp" value="RecommendationMapper · UserPreferenceMapper&lt;br&gt;DishMapper · FlightInfoMapper · CategoryMapper&lt;br&gt;FlightRouteDishMapper · FlightAnnouncementMapper&lt;br&gt;EmployeeMapper · UserMapper&lt;br&gt;UserMealCenterMapper · DishFlavorMapper" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="625" y="386" width="230" height="108" as="geometry" />
+        </mxCell>
+
+        <!-- task -->
+        <mxCell id="tk_title" value="task/" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="105" y="520" width="750" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="tk" value="MealSelectionTask       autoSelectWhenOverdue() 每5分钟执行       pushSelectionReminder() 每10分钟执行" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=left;spacingLeft=15;" vertex="1" parent="1">
+          <mxGeometry x="105" y="548" width="750" height="40" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

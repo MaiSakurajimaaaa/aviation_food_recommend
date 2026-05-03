@@ -148,7 +148,12 @@
                          #{nextRemindAt}, #{deferCount}, #{expireAt}, #{channel}, #{createTime}, #{updateTime})
                         on duplicate key update
                                                                  source_log_id = values(source_log_id),
+                                                                 rating_status = values(rating_status),
+                                                                 first_visible_at = values(first_visible_at),
                                                                  last_visible_at = values(last_visible_at),
+                                                                 next_remind_at = values(next_remind_at),
+                                                                 defer_count = values(defer_count),
+                                                                 expire_at = values(expire_at),
                                                                  update_time = values(update_time)
         </insert>
 
