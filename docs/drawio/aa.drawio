@@ -1,0 +1,216 @@
+mxfile host=Electron agent=Mozilla5.0 (Windows NT 10.0; Win64; x64) AppleWebKit537.36 (KHTML, like Gecko) draw.io25.0.2 Chrome128.0.6613.186 Electron32.2.5 Safari537.36 version=25.0.2
+  diagram name=Fused-PMFUP-PRMIDM-AMMBC-v3 Architecture id=75JZtqcEvXaPhkF1NND_
+    mxGraphModel dx=1400 dy=950 grid=1 gridSize=8 guides=1 tooltips=1 connect=1 arrows=1 fold=1 page=1 pageScale=1 pageWidth=1160 pageHeight=960 math=0 shadow=0
+      root
+        mxCell id=0 
+        mxCell id=1 parent=0 
+
+        { 标题 }
+        mxCell id=title value=图3.1  Fused-PMFUP-PRMIDM-AMMBC (v3) 算法架构 style=text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=16;fontStyle=1; parent=1 vertex=1
+          mxGeometry x=300 y=8 width=560 height=28 as=geometry 
+        mxCell
+
+        { 输入层 }
+        mxCell id=input value=输入：userId, flightId, mealOrder style=rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;fontSize=12;fontStyle=1; parent=1 vertex=1
+          mxGeometry x=400 y=48 width=360 height=32 as=geometry 
+        mxCell
+
+        { 核心常量区（新增） }
+        mxCell id=constants value=&lt;b&gt;核心常量(Core Constants)&lt;b&gt;&lt;br&gt;餐食类型 {1儿童, 2标准, 3清真, 4素食}&lt;br&gt;口味标签 {清淡, 咸香, 微辣, 甜口, 低脂, 高蛋白}&lt;br&gt;舱位等级 {头等(1), 商务(2), 经济(3)}&lt;br&gt;收缩因子 λ=3.0    近期窗口 30天    历史窗口 180天    曝光权重 0.15 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;fontSize=9;align=left;verticalAlign=top; parent=1 vertex=1
+          mxGeometry x=80 y=40 width=280 height=90 as=geometry 
+        mxCell
+        mxCell id=a_input style=endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=input target=ctx_data edge=1 
+
+        { 第1层：数据加载 }
+        mxCell id=ctx_data value=数据加载 (Data Loading) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=100 width=1000 height=70 as=geometry 
+        mxCell
+        mxCell id=d1 value=User 表&lt;br&gt;（偏好  舱位） style=shape=cylinder;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;size=8;fontSize=10;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=118 width=220 height=44 as=geometry 
+        mxCell
+        mxCell id=d2 value=FlightInfo 表&lt;br&gt;（航线  餐数  截止时间） style=shape=cylinder;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;size=8;fontSize=10;align=center; parent=1 vertex=1
+          mxGeometry x=340 y=118 width=220 height=44 as=geometry 
+        mxCell
+        mxCell id=d3 value=flight_route_dish 表&lt;br&gt;（航线-菜品绑定） style=shape=cylinder;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;size=8;fontSize=10;align=center; parent=1 vertex=1
+          mxGeometry x=580 y=118 width=220 height=44 as=geometry 
+        mxCell
+        mxCell id=d4 value=recommendation_log 表&lt;br&gt;（历史行为日志 180天） style=shape=cylinder;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;size=8;fontSize=10;align=center; parent=1 vertex=1
+          mxGeometry x=820 y=118 width=240 height=44 as=geometry 
+        mxCell
+
+        { 第2层：候选筛选 }
+        mxCell id=ctx_filter value=候选筛选 (Candidate Filtering) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=190 width=1000 height=60 as=geometry 
+        mxCell
+        mxCell id=c1 value=舱位递进规则：头等 → [1,2,3]  &amp;nbsp; 商务 → [2,3]  &amp;nbsp; 经济 → [3] style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=204 width=460 height=34 as=geometry 
+        mxCell
+        mxCell id=c2 value=SQL 查询：航线匹配 + cabin_type IN (...) 递进 + 库存 &gt; 0 + LIMIT 20 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;align=center; parent=1 vertex=1
+          mxGeometry x=580 y=204 width=480 height=34 as=geometry 
+        mxCell
+        mxCell id=a_filter style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=ctx_filter target=ctx_interact edge=1 
+
+        { 第3层：交互上下文 }
+        mxCell id=ctx_interact value=交互上下文 (Interaction Context) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=270 width=1000 height=50 as=geometry 
+        mxCell
+        mxCell id=ctx_sig value=行为信号权重：曝光 0.15  点击 2.0  手动预选 5.0  自动分配 3.0  评分 2.0 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=10;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=284 width=540 height=24 as=geometry 
+        mxCell
+        mxCell id=ctx_decay value=时间衰减：e^(−0.018×days)   &amp;nbsp; 构建特征：userDishScore, userBehaviorSignal, prefFlavors style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=10;align=center; parent=1 vertex=1
+          mxGeometry x=660 y=284 width=400 height=24 as=geometry 
+        mxCell
+
+        { 第4层：三子模型 }
+        mxCell id=ctx_models value=三子模型 (Core Models) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=340 width=1000 height=160 as=geometry 
+        mxCell
+
+        { PMFUP }
+        mxCell id=pmfup_title value=PMFUP  基于用户画像的偏好匹配 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=1.5;fontSize=12;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=356 width=300 height=30 as=geometry 
+        mxCell
+        mxCell id=pmfup_1 value=餐型匹配：单偏好 +0.45  多偏好 +0.38 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=394 width=300 height=22 as=geometry 
+        mxCell
+        mxCell id=pmfup_2 value=口味匹配：min(0.35, 0.15 + matched × 0.10) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=420 width=300 height=22 as=geometry 
+        mxCell
+        mxCell id=pmfup_out value=S₁ = clamp( 0.2 + typeBonus + flavorBonus ) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=1;fontSize=10;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=450 width=300 height=26 as=geometry 
+        mxCell
+
+        { PRMIDM }
+        mxCell id=prmidm_title value=PRMIDM  偏好漂移与兴趣迁移 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=1.5;fontSize=12;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=430 y=356 width=300 height=30 as=geometry 
+        mxCell
+        mxCell id=prmidm_1 value=口味得分归一化：norm(x) = x(x+2.0) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=430 y=394 width=300 height=22 as=geometry 
+        mxCell
+        mxCell id=prmidm_2 value=漂移增强：driftBoost = max(0, recentPref − historyPref) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=430 y=420 width=300 height=22 as=geometry 
+        mxCell
+        mxCell id=prmidm_out value=S₂ = 0.60×recentPref + 0.30×driftBoost + 0.10×dishSignal style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=1;fontSize=10;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=430 y=450 width=300 height=26 as=geometry 
+        mxCell
+
+        { AMMBC }
+        mxCell id=ammbc_title value=AMMBC  自适应协同过滤 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=1.5;fontSize=12;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=760 y=356 width=300 height=30 as=geometry 
+        mxCell
+        mxCell id=ammbc_1 value=User-CF 余弦相似度 → 收缩修正 × overlap(overlap+3.0) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=760 y=394 width=300 height=22 as=geometry 
+        mxCell
+        mxCell id=ammbc_2 value=流行度去偏 → 置信度加权 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=760 y=420 width=300 height=22 as=geometry 
+        mxCell
+        mxCell id=ammbc_out value=S₃ = collaborative × popDebias × (0.70 + 0.30×confidence) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=1;fontSize=10;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=760 y=450 width=300 height=26 as=geometry 
+        mxCell
+
+        { 第5层：融合 }
+        mxCell id=ctx_fusion value=自适应融合 (Adaptive Fusion) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=520 width=1000 height=100 as=geometry 
+        mxCell
+
+        { 权重解构器 }
+        mxCell id=wr_title value=自适应权重解析器 resolveFusionWeights() style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=538 width=400 height=30 as=geometry 
+        mxCell
+        mxCell id=wr_eq value=w₁ = 0.46 + 0.22(1−sc) + 0.08(1−de)    w₂ = 0.22 + 0.30·de + 0.12·sc    w₃ = 0.16 + 0.26·sc + 0.18·bc style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=574 width=400 height=26 as=geometry 
+        mxCell
+        mxCell id=wr_note value=sc=ln(1+s)ln15，de=d12，bc=c10   &amp;nbsp; 默认权重 [0.60, 0.25, 0.15]（行为稀疏时触发） style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=8;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=604 width=400 height=14 as=geometry 
+        mxCell
+
+        { 融合计算 }
+        mxCell id=fu_title value=融合计算 (Fused Score) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=540 y=538 width=520 height=30 as=geometry 
+        mxCell
+        mxCell id=fu_eq value=S_fused  =  w₁ × S₁  +  w₂ × S₂  +  w₃ × S₃ style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;fontSize=14;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=540 y=574 width=520 height=34 as=geometry 
+        mxCell
+
+        { 连接子模型到融合层 }
+        mxCell id=a_s1 style=endArrow=classic;html=1;strokeColor=#b85450;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.15;entryY=0;exitDx=0;exitDy=0;entryDx=0;entryDy=0; parent=1 source=pmfup_out target=fu_eq edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_s2 style=endArrow=classic;html=1;strokeColor=#b85450;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;exitDx=0;exitDy=0;entryDx=0;entryDy=0; parent=1 source=prmidm_out target=fu_eq edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_s3 style=endArrow=classic;html=1;strokeColor=#b85450;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.85;entryY=0;exitDx=0;exitDy=0;entryDx=0;entryDy=0; parent=1 source=ammbc_out target=fu_eq edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_wf style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5; parent=1 source=wr_eq target=fu_eq edge=1 
+
+        { 第6层：多餐约束 }
+        mxCell id=ctx_penalty value=多餐约束 (Meal Order Constraint) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=640 width=1000 height=50 as=geometry 
+        mxCell
+        mxCell id=pen value=前序餐食惩罚（mealOrder ≥ 2 时触发）：查询 prevDishId → 相同菜品 ×0.70    同一餐型 ×0.85 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=10;align=center; parent=1 vertex=1
+          mxGeometry x=120 y=650 width=940 height=28 as=geometry 
+        mxCell
+        mxCell id=a_fp style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=fu_eq target=pen edge=1 
+
+        { 第7层：输出 }
+        mxCell id=ctx_output value=输出 (Output) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=710 width=1000 height=60 as=geometry 
+        mxCell
+        mxCell id=out value=按 fusedScore 降序排列的个性化推荐列表，每条附带解释标签 style=rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=12;fontStyle=1;align=center; parent=1 vertex=1
+          mxGeometry x=120 y=720 width=920 height=32 as=geometry 
+        mxCell
+        mxCell id=a_po style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=pen target=out edge=1 
+
+        { 第8层：解释标签 }
+        mxCell id=ctx_explain value=解释标签生成规则 (Explanation Tags) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;verticalAlign=top;fontSize=10;fontStyle=1;align=left; parent=1 vertex=1
+          mxGeometry x=80 y=790 width=1000 height=70 as=geometry 
+        mxCell
+        mxCell id=ex1 value=画像偏好匹配&lt;br&gt;(S₁ ≥ 0.65) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=100 y=808 width=150 height=36 as=geometry 
+        mxCell
+        mxCell id=ex2 value=近期口味漂移&lt;br&gt;(S₂ ≥ 0.55) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=265 y=808 width=150 height=36 as=geometry 
+        mxCell
+        mxCell id=ex3 value=协同过滤匹配&lt;br&gt;(S₃ ≥ 0.40) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=430 y=808 width=150 height=36 as=geometry 
+        mxCell
+        mxCell id=ex4 value=行为样本不足&lt;br&gt;(signalCount &lt; 3) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=595 y=808 width=150 height=36 as=geometry 
+        mxCell
+        mxCell id=ex5 value=与前序餐食相同&lt;br&gt;(触发前序惩罚) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=760 y=808 width=150 height=36 as=geometry 
+        mxCell
+        mxCell id=ex6 value=基础稳健推荐&lt;br&gt;(无匹配时兜底) style=rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1;fontSize=9;align=center; parent=1 vertex=1
+          mxGeometry x=925 y=808 width=140 height=36 as=geometry 
+        mxCell
+        
+        { 解释标签连接线 }
+        mxCell id=a_oe style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=out target=ex1 edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_oe2 style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=out target=ex2 edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_oe3 style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=out target=ex3 edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_oe4 style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=out target=ex4 edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_oe5 style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=out target=ex5 edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+        mxCell id=a_oe6 style=endArrow=classic;html=1;strokeColor=#000000;strokeWidth=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0; parent=1 source=out target=ex6 edge=1
+          mxGeometry relative=1 as=geometry 
+        mxCell
+
+        { 底部注释（解释变量） }
+        mxCell id=note value=注：s 为有效行为信号量，d 为活跃天数，c 为置信度；信号稀疏时触发默认权重 [0.60, 0.25, 0.15]。 style=text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=8;fontStyle=2; parent=1 vertex=1
+          mxGeometry x=80 y=870 width=1000 height=16 as=geometry 
+        mxCell
+
+      root
+    mxGraphModel
+  diagram
+mxfile

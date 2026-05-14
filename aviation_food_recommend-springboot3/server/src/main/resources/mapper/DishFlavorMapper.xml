@@ -5,14 +5,22 @@
 
     <insert id="insertBatch">
         insert into dish_flavor (name, list, dish_id) VALUES
-        <foreach collection="flavorList" item="df" separator=",">
+        <foreach collection="list" item="df" separator=",">
             (#{df.name}, #{df.list}, #{df.dishId})
         </foreach>
     </insert>
 
+    <select id="getByDishId" resultType="fun.hykgraph.entity.DishFlavor">
+        select * from dish_flavor where dish_id = #{dishId}
+    </select>
+
+    <delete id="deleteByDishId">
+        delete from dish_flavor where dish_id = #{dishId}
+    </delete>
+
     <delete id="deleteBatch">
         delete from dish_flavor where dish_id in
-        <foreach collection="ids" item="id" separator="," open="(" close=")">
+        <foreach collection="list" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>
     </delete>

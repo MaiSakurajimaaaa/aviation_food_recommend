@@ -47,11 +47,6 @@ const router = createRouter({
           component: () => import('./views/flightMealCenter/index.vue')
         },
         {
-          path: 'user-center',
-          name: 'user_center',
-          component: () => import('./views/userCenter/index.vue')
-        },
-        {
           path: 'user-meal-center',
           name: 'user_meal_center',
           component: () => import('./views/userMealCenter/index.vue')
@@ -62,9 +57,9 @@ const router = createRouter({
           component: () => import('./views/foods/index.vue')
         },
         {
-          path: 'preferences',
-          name: 'preferences',
-          component: () => import('./views/preferences/index.vue')
+          path: 'announcement-center',
+          name: 'announcement_center',
+          component: () => import('./views/announcementCenter/index.vue')
         },
         {
           path: 'rating-center',

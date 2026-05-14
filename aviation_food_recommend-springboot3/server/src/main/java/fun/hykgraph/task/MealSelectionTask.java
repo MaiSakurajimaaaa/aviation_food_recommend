@@ -2,12 +2,12 @@ package fun.hykgraph.task;
 
 import fun.hykgraph.entity.FlightAnnouncement;
 import fun.hykgraph.entity.FlightInfo;
-import fun.hykgraph.entity.UserPreference;
+import fun.hykgraph.entity.User;
 import fun.hykgraph.mapper.DishMapper;
 import fun.hykgraph.mapper.FlightAnnouncementMapper;
 import fun.hykgraph.mapper.FlightInfoMapper;
 import fun.hykgraph.mapper.RecommendationMapper;
-import fun.hykgraph.mapper.UserPreferenceMapper;
+import fun.hykgraph.mapper.UserMapper;
 import fun.hykgraph.vo.RecommendationDishVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +31,7 @@ public class MealSelectionTask {
     @Autowired
     private RecommendationMapper recommendationMapper;
     @Autowired
-    private UserPreferenceMapper userPreferenceMapper;
+    private UserMapper userMapper;
     @Autowired
     private DishMapper dishMapper;
     @Autowired
@@ -98,9 +98,9 @@ public class MealSelectionTask {
     }
 
     private void autoPickForUser(Integer userId, FlightInfo flight, Integer cabinType) {
-        UserPreference preference = userPreferenceMapper.getByUserId(userId);
-        Integer mealType = parseMealType(preference == null ? null : preference.getMealTypePreferences());
-        String flavor = parseFlavor(preference == null ? null : preference.getFlavorPreferences());
+        User user = userMapper.getById(userId);
+        Integer mealType = parseMealType(user == null ? null : user.getMealTypePreferences());
+        String flavor = parseFlavor(user == null ? null : user.getFlavorPreferences());
 
         List<RecommendationDishVO> candidates = recommendationMapper.listCandidateDishes(
                 flight.getId(),
@@ -140,7 +140,6 @@ public class MealSelectionTask {
         selection.put("userId", userId);
         selection.put("flightId", flight.getId());
         selection.put("mealOrder", 1);
-        selection.put("seatNumber", "AUTO");
         selection.put("createTime", LocalDateTime.now());
         selection.put("updateTime", LocalDateTime.now());
         recommendationMapper.insertMealSelection(selection);

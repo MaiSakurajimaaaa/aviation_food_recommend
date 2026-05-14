@@ -6,12 +6,12 @@ import fun.hykgraph.dto.FlightPassengerDTO;
 import fun.hykgraph.entity.Dish;
 import fun.hykgraph.entity.FlightInfo;
 import fun.hykgraph.entity.User;
-import fun.hykgraph.entity.UserPreference;
+
 import fun.hykgraph.mapper.DishMapper;
 import fun.hykgraph.mapper.FlightInfoMapper;
 import fun.hykgraph.mapper.FlightRouteDishMapper;
 import fun.hykgraph.mapper.UserMapper;
-import fun.hykgraph.mapper.UserPreferenceMapper;
+
 import fun.hykgraph.result.Result;
 import fun.hykgraph.vo.FlightMealBindingVO;
 import fun.hykgraph.vo.FlightPassengerVO;
@@ -49,9 +49,6 @@ public class FlightController {
     private DishMapper dishMapper;
     @Autowired
     private UserMapper userMapper;
-    @Autowired
-    private UserPreferenceMapper userPreferenceMapper;
-
     @GetMapping("/list")
     public Result<List<FlightInfo>> list() {
         return Result.success(flightInfoMapper.listAll());
@@ -295,11 +292,11 @@ public class FlightController {
         if (userId == null) {
             return 0;
         }
-        UserPreference preference = userPreferenceMapper.getByUserId(userId);
-        if (preference == null) {
+        User user = userMapper.getById(userId);
+        if (user == null) {
             return 0;
         }
-        String raw = preference.getFlavorPreferences();
+        String raw = user.getFlavorPreferences();
         if (raw == null || raw.trim().isEmpty()) {
             return 0;
         }

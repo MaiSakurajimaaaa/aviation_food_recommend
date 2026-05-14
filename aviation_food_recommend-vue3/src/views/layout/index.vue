@@ -33,11 +33,6 @@ const menuList = [
     icon: 'Food',
   },
   {
-    title: '用户管理中心',
-    path: '/user-center',
-    icon: 'UserFilled',
-  },
-  {
     title: '用户餐食中心',
     path: '/user-meal-center',
     icon: 'User',
@@ -49,7 +44,7 @@ const menuList = [
   },
   {
     title: '公告管理中心',
-    path: '/preferences',
+    path: '/announcement-center',
     icon: 'DataAnalysis',
   },
   {

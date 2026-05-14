@@ -32,8 +32,8 @@ const addForm = reactive({
   destination: '',
   departureTime: '',
   arrivalTime: '',
-  durationMinutes: 120,
   selectionDeadline: '',
+  mealCount: 1,
   mealTimes: '["起飞后1小时"]',
 })
 
@@ -61,7 +61,6 @@ const editForm = reactive({
   destination: '',
   departureTime: '',
   arrivalTime: '',
-  durationMinutes: 120,
   selectionDeadline: '',
   mealCount: 1,
   status: 1,
@@ -187,8 +186,8 @@ const openAddDialog = () => {
   addForm.destination = ''
   addForm.departureTime = ''
   addForm.arrivalTime = ''
-  addForm.durationMinutes = 120
   addForm.selectionDeadline = ''
+  addForm.mealCount = 1
   addForm.mealTimes = '["起飞后1小时"]'
   addDialogVisible.value = true
 }
@@ -198,14 +197,13 @@ const addFlight = async () => {
   if (duration == null) {
     return
   }
-  addForm.durationMinutes = duration
   const payload: FlightUpsertPayload = {
     ...addForm,
     flightNumber: addForm.flightNumber.trim().toUpperCase(),
     departure: addForm.departure.trim(),
     destination: addForm.destination.trim(),
     durationMinutes: duration,
-    mealCount: duration >= 180 ? 2 : 1,
+    mealCount: addForm.mealCount,
     status: 1,
   }
   const { data: res } = await addFlightAPI(payload)
@@ -239,7 +237,6 @@ const openEditDialog = (row: FlightItem) => {
   editForm.destination = row.destination || ''
   editForm.departureTime = row.departureTime || ''
   editForm.arrivalTime = row.arrivalTime || ''
-  editForm.durationMinutes = row.durationMinutes || 120
   editForm.selectionDeadline = row.selectionDeadline || ''
   editForm.mealCount = row.mealCount || 1
   editForm.status = row.status ?? 1
@@ -251,14 +248,13 @@ const saveEdit = async () => {
   if (duration == null) {
     return
   }
-  editForm.durationMinutes = duration
   const payload: FlightUpsertPayload = {
     ...editForm,
     flightNumber: editForm.flightNumber.trim().toUpperCase(),
     departure: editForm.departure.trim(),
     destination: editForm.destination.trim(),
     durationMinutes: duration,
-    mealCount: duration >= 180 ? 2 : 1,
+    mealCount: editForm.mealCount,
   }
   const { data: res } = await updateFlightAPI(payload)
   if (res.code !== 0) return
@@ -320,7 +316,6 @@ onMounted(loadData)
         <el-table-column prop="destination" label="目的地" />
         <el-table-column prop="departureTime" label="起飞时间" min-width="170" />
         <el-table-column prop="arrivalTime" label="到达时间" min-width="170" />
-        <el-table-column prop="durationMinutes" label="时长(分钟)" />
         <el-table-column prop="selectionDeadline" label="预选截止时间" min-width="180" />
         <el-table-column prop="mealCount" label="供餐次数" />
         <el-table-column label="状态" width="100">
@@ -374,8 +369,8 @@ onMounted(loadData)
             placeholder="请选择到达时间"
           />
         </el-form-item>
-        <el-form-item label="飞行时长">
-          <el-input-number v-model="addForm.durationMinutes" :min="30" />
+        <el-form-item label="供餐次数">
+          <el-input-number v-model="addForm.mealCount" :min="1" />
         </el-form-item>
         <el-form-item label="预选截止">
           <el-date-picker
@@ -416,8 +411,8 @@ onMounted(loadData)
             placeholder="请选择到达时间"
           />
         </el-form-item>
-        <el-form-item label="飞行时长">
-          <el-input-number v-model="editForm.durationMinutes" :min="30" />
+        <el-form-item label="供餐次数">
+          <el-input-number v-model="editForm.mealCount" :min="1" :max="3" />
         </el-form-item>
         <el-form-item label="预选截止">
           <el-date-picker

@@ -4,13 +4,13 @@ import fun.hykgraph.context.BaseContext;
 import fun.hykgraph.entity.FlightAnnouncement;
 import fun.hykgraph.entity.FlightInfo;
 import fun.hykgraph.entity.User;
-import fun.hykgraph.entity.UserPreference;
+
 import fun.hykgraph.mapper.DishMapper;
 import fun.hykgraph.mapper.FlightAnnouncementMapper;
 import fun.hykgraph.mapper.FlightInfoMapper;
 import fun.hykgraph.mapper.RecommendationMapper;
 import fun.hykgraph.mapper.UserMapper;
-import fun.hykgraph.mapper.UserPreferenceMapper;
+
 import fun.hykgraph.result.Result;
 import fun.hykgraph.vo.PendingRatingInfoVO;
 import fun.hykgraph.vo.RecommendationDishVO;
@@ -51,8 +51,6 @@ public class RecommendationController {
     private FlightInfoMapper flightInfoMapper;
     @Autowired
     private FlightAnnouncementMapper announcementMapper;
-    @Autowired
-    private UserPreferenceMapper userPreferenceMapper;
     @Autowired
     private RecommendationMapper recommendationMapper;
     @Autowired
@@ -108,29 +106,46 @@ public class RecommendationController {
     }
 
     @GetMapping("/preference")
-    public Result<UserPreference> getPreference() {
+    public Result<Map<String, Object>> getPreference() {
         Integer userId = BaseContext.getCurrentId();
-        return Result.success(userPreferenceMapper.getByUserId(userId));
+        User user = userMapper.getById(userId);
+        if (user == null) {
+            return Result.success(null);
+        }
+        Map<String, Object> pref = new HashMap<>();
+        pref.put("userId", user.getId());
+        pref.put("mealTypePreferences", user.getMealTypePreferences());
+        pref.put("flavorPreferences", user.getFlavorPreferences());
+
+        pref.put("dietaryNotes", user.getDietaryNotes());
+        pref.put("updateTime", user.getUpdateTime());
+        pref.put("createTime", user.getCreateTime());
+        return Result.success(pref);
     }
 
     @PutMapping("/preference")
-    public Result savePreference(@RequestBody UserPreference preference) {
+    public Result savePreference(@RequestBody Map<String, Object> params) {
         Integer userId = BaseContext.getCurrentId();
-        String validation = validatePreference(preference);
+        String mealTypePreferences = params.get("mealTypePreferences") != null ? String.valueOf(params.get("mealTypePreferences")) : null;
+        String flavorPreferences = params.get("flavorPreferences") != null ? String.valueOf(params.get("flavorPreferences")) : null;
+
+        String dietaryNotes = params.get("dietaryNotes") != null ? String.valueOf(params.get("dietaryNotes")) : null;
+        String validation = validatePreference(mealTypePreferences, flavorPreferences);
         if (validation != null) {
             return Result.error(validation);
         }
-        preference.setUserId(userId);
-        preference.setUpdateTime(LocalDateTime.now());
-        UserPreference db = userPreferenceMapper.getByUserId(userId);
-        if (db == null) {
-            preference.setCreateTime(LocalDateTime.now());
-            userPreferenceMapper.insert(preference);
-        } else {
-            userPreferenceMapper.update(preference);
-        }
-        int completed = parseFlavorList(preference.getFlavorPreferences()).isEmpty() ? 0 : 1;
-        userMapper.updatePreferenceCompleted(userId, completed);
+        LocalDateTime now = LocalDateTime.now();
+        int completed = parseFlavorList(flavorPreferences).isEmpty() ? 0 : 1;
+        User user = User.builder()
+                .id(userId)
+                .mealTypePreferences(mealTypePreferences)
+                .flavorPreferences(flavorPreferences)
+
+                .dietaryNotes(dietaryNotes)
+                .preferenceCompleted(completed)
+                .updateTime(now)
+                .build();
+        userMapper.update(user);
         return Result.success();
     }
 
@@ -168,9 +183,9 @@ public class RecommendationController {
         }
 
         List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
-        UserPreference preference = userPreferenceMapper.getByUserId(userId);
-        Set<Integer> prefMealTypes = parsePreferenceMealTypes(preference == null ? null : preference.getMealTypePreferences());
-        Set<String> prefFlavors = new HashSet<>(parseFlavorList(preference == null ? null : preference.getFlavorPreferences()));
+        User prefUser = userMapper.getById(userId);
+        Set<Integer> prefMealTypes = parsePreferenceMealTypes(prefUser == null ? null : prefUser.getMealTypePreferences());
+        Set<String> prefFlavors = new HashSet<>(parseFlavorList(prefUser == null ? null : prefUser.getFlavorPreferences()));
 
         Map<Integer, RecommendationDishVO> candidateMap = list.stream()
                 .filter(item -> item.getDishId() != null)
@@ -398,7 +413,6 @@ public class RecommendationController {
                 selection.put("userId", userId);
                 selection.put("flightId", flightInfo.getId());
                 selection.put("mealOrder", safeMealOrder);
-                selection.put("seatNumber", "USER");
                 selection.put("createTime", now);
                 selection.put("updateTime", now);
                 recommendationMapper.insertMealSelection(selection);
@@ -589,9 +603,8 @@ public class RecommendationController {
         }
 
         User user = userMapper.getById(userId);
-        UserPreference preference = userPreferenceMapper.getByUserId(userId);
-        Set<Integer> prefMealTypes = parsePreferenceMealTypes(preference == null ? null : preference.getMealTypePreferences());
-        Set<String> prefFlavors = new HashSet<>(parseFlavorList(preference == null ? null : preference.getFlavorPreferences()));
+        Set<Integer> prefMealTypes = parsePreferenceMealTypes(user == null ? null : user.getMealTypePreferences());
+        Set<String> prefFlavors = new HashSet<>(parseFlavorList(user == null ? null : user.getFlavorPreferences()));
 
         List<Integer> cabinTypes = resolveUserCabinTypes(user);
         List<RecommendationDishVO> dishVOList = recommendationMapper.listCandidateDishes(
@@ -646,6 +659,637 @@ public class RecommendationController {
 
         Map<String, Object> result = new HashMap<>();
         result.put("breakdown", breakdown);
+        return Result.success(result);
+    }
+
+    /**
+     * 离线评测接口：对不同权重配置计算 Top-1 / Top-3 / MRR。
+     * 按时间划分训练/测试集，仅用测试集的时间点之前的日志构建上下文，避免数据泄露。
+     */
+    @GetMapping("/recommendation/evaluate")
+    public Result<Map<String, Object>> evaluate() {
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        if (allLogs == null || allLogs.size() < 30) {
+            return Result.error("日志数量不足，无法评测");
+        }
+
+        // 按 create_time 升序
+        allLogs.sort((a, b) -> {
+            Object ta = a.get("createTime");
+            Object tb = b.get("createTime");
+            if (ta == null && tb == null) return 0;
+            if (ta == null) return -1;
+            if (tb == null) return 1;
+            return String.valueOf(ta).compareTo(String.valueOf(tb));
+        });
+
+        // 提取 MANUAL_SELECTED 日志作为 ground truth
+        List<Map<String, Object>> manualLogs = new ArrayList<>();
+        for (Map<String, Object> row : allLogs) {
+            String fb = row.get("userFeedback") == null ? "" : String.valueOf(row.get("userFeedback"));
+            if (fb.startsWith("MANUAL_SELECTED")) {
+                manualLogs.add(row);
+            }
+        }
+
+        // 按时间取后 20% 作为测试集（至少 5 条）
+        int splitIdx = Math.max(1, (int) (manualLogs.size() * 0.8));
+        List<Map<String, Object>> testLogs = manualLogs.subList(splitIdx, manualLogs.size());
+        if (testLogs.size() < 5) {
+            testLogs = manualLogs.subList(Math.max(0, manualLogs.size() - 5), manualLogs.size());
+        }
+
+        // 权重配置
+        double[][] weightConfigs = {
+            {1.0, 0.0, 0.0},          // 纯 PMFUP
+            {0.0, 0.0, 1.0},          // 纯 AMMBC (User-CF)
+            {0.60, 0.25, 0.15},       // 固定权重
+        };
+        String[] configNames = {"纯PMFUP", "纯User-CF", "固定权重[0.60,0.25,0.15]", "自适应融合"};
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("testSize", testLogs.size());
+        result.put("totalManualLogs", manualLogs.size());
+        List<Map<String, Object>> results = new ArrayList<>();
+
+        for (int ci = 0; ci < weightConfigs.length; ci++) {
+            double[] fixedW = weightConfigs[ci];
+            int top1 = 0, top3 = 0;
+            double mrrSum = 0.0;
+            int valid = 0;
+
+            for (Map<String, Object> testLog : testLogs) {
+                Integer uid = parseInt(testLog.get("userId"));
+                Integer fid = parseInt(testLog.get("flightId"));
+                Integer truthDishId = extractDishIdFromText(testLog.get("userFeedback"));
+                if (uid == null || fid == null || truthDishId == null) continue;
+
+                // 获取该时间点之前的日志（避免数据泄露）
+                Object testTime = testLog.get("createTime");
+                List<Map<String, Object>> logsBefore = new ArrayList<>();
+                for (Map<String, Object> row : allLogs) {
+                    Object t = row.get("createTime");
+                    if (t != null && testTime != null
+                            && String.valueOf(t).compareTo(String.valueOf(testTime)) < 0) {
+                        logsBefore.add(row);
+                    }
+                }
+
+                List<Integer> ranked = evaluateRanking(uid, fid, truthDishId, logsBefore, fixedW);
+                if (ranked == null || ranked.isEmpty()) continue;
+
+                valid++;
+                if (!ranked.isEmpty() && Objects.equals(ranked.get(0), truthDishId)) top1++;
+                for (int k = 0; k < Math.min(3, ranked.size()); k++) {
+                    if (Objects.equals(ranked.get(k), truthDishId)) { top3++; break; }
+                }
+                for (int r = 0; r < ranked.size(); r++) {
+                    if (Objects.equals(ranked.get(r), truthDishId)) {
+                        mrrSum += 1.0 / (r + 1);
+                        break;
+                    }
+                }
+            }
+
+            Map<String, Object> row = new HashMap<>();
+            row.put("config", configNames[ci]);
+            row.put("valid", valid);
+            row.put("top1", valid > 0 ? String.format("%.1f%%", 100.0 * top1 / valid) : "N/A");
+            row.put("top3", valid > 0 ? String.format("%.1f%%", 100.0 * top3 / valid) : "N/A");
+            row.put("mrr", valid > 0 ? String.format("%.4f", mrrSum / valid) : "N/A");
+            results.add(row);
+        }
+
+        // 自适应权重
+        {
+            int top1 = 0, top3 = 0, valid = 0;
+            double mrrSum = 0.0;
+            for (Map<String, Object> testLog : testLogs) {
+                Integer uid = parseInt(testLog.get("userId"));
+                Integer fid = parseInt(testLog.get("flightId"));
+                Integer truthDishId = extractDishIdFromText(testLog.get("userFeedback"));
+                if (uid == null || fid == null || truthDishId == null) continue;
+
+                Object testTime = testLog.get("createTime");
+                List<Map<String, Object>> logsBefore = new ArrayList<>();
+                for (Map<String, Object> row2 : allLogs) {
+                    Object t = row2.get("createTime");
+                    if (t != null && testTime != null
+                            && String.valueOf(t).compareTo(String.valueOf(testTime)) < 0) {
+                        logsBefore.add(row2);
+                    }
+                }
+
+                List<Integer> ranked = evaluateRanking(uid, fid, truthDishId, logsBefore, null);
+                if (ranked == null || ranked.isEmpty()) continue;
+
+                valid++;
+                if (!ranked.isEmpty() && Objects.equals(ranked.get(0), truthDishId)) top1++;
+                for (int k = 0; k < Math.min(3, ranked.size()); k++) {
+                    if (Objects.equals(ranked.get(k), truthDishId)) { top3++; break; }
+                }
+                for (int r = 0; r < ranked.size(); r++) {
+                    if (Objects.equals(ranked.get(r), truthDishId)) {
+                        mrrSum += 1.0 / (r + 1);
+                        break;
+                    }
+                }
+            }
+            Map<String, Object> row = new HashMap<>();
+            row.put("config", configNames[3]);
+            row.put("valid", valid);
+            row.put("top1", valid > 0 ? String.format("%.1f%%", 100.0 * top1 / valid) : "N/A");
+            row.put("top3", valid > 0 ? String.format("%.1f%%", 100.0 * top3 / valid) : "N/A");
+            row.put("mrr", valid > 0 ? String.format("%.4f", mrrSum / valid) : "N/A");
+            results.add(row);
+        }
+
+        result.put("results", results);
+        return Result.success(result);
+    }
+
+    /**
+     * 核心评分逻辑（从 list() 提取），返回按 fusedScore 降序排列的 dishId 列表。
+     * 若 fixedWeights 非空则使用固定权重，否则调用自适应权重解析器。
+     */
+    private List<Integer> evaluateRanking(Integer userId, Integer flightId,
+                                           Integer truthDishId,
+                                           List<Map<String, Object>> logsBefore,
+                                           double[] fixedWeights) {
+        // 随机基线
+        if (fixedWeights != null && fixedWeights.length > 0 && fixedWeights[0] == -1) {
+            return evaluateRankingRandom(flightId, userId);
+        }
+        // 流行度基线
+        if (fixedWeights != null && fixedWeights.length > 0 && fixedWeights[0] == -2) {
+            return evaluateRankingPopular(logsBefore, flightId, userId);
+        }
+
+        try {
+            FlightInfo flightInfo = flightInfoMapper.getById(flightId);
+            if (flightInfo == null) { log.info("eval: flightInfo null flightId={}", flightId); return null; }
+
+            List<Integer> cabinTypes = resolveCabinTypes(flightInfo, userId);
+            List<RecommendationDishVO> candidates = recommendationMapper.listCandidateDishes(
+                    flightId, null, null, 30, cabinTypes);
+            if (candidates.isEmpty()) { log.info("eval: no candidates userId={} flightId={}", userId, flightId); return null; }
+
+            Map<Integer, RecommendationDishVO> candidateMap = candidates.stream()
+                    .filter(it -> it.getDishId() != null)
+                    .collect(Collectors.toMap(RecommendationDishVO::getDishId, it -> it, (a, b) -> a));
+            Map<String, Integer> dishNameIdMap = candidates.stream()
+                    .filter(it -> it.getDishId() != null && it.getDishName() != null)
+                    .collect(Collectors.toMap(it -> it.getDishName().trim(),
+                            RecommendationDishVO::getDishId, (a, b) -> a));
+
+            InteractionContext ctx = buildInteractionContext(logsBefore, candidateMap, dishNameIdMap);
+            User prefUser = userMapper.getById(userId);
+            Set<Integer> prefMealTypes = parsePreferenceMealTypes(
+                    prefUser == null ? null : prefUser.getMealTypePreferences());
+            Set<String> prefFlavors = new HashSet<>(
+                    parseFlavorList(prefUser == null ? null : prefUser.getFlavorPreferences()));
+
+            double[] weights;
+            if (fixedWeights != null) {
+                weights = fixedWeights;
+            } else {
+                weights = resolveFusionWeights(userId, ctx);
+            }
+
+            // 对每个候选打分
+            List<RecommendationDishVO> scored = new ArrayList<>();
+            for (RecommendationDishVO item : candidates) {
+                if (item.getDishId() == null) continue;
+                double s1 = calculatePmfupScore(item, prefMealTypes, prefFlavors,
+                        flightId, ctx, userId, flightInfo.getDepartureTime(), 1);
+                double s2 = calculatePrmidmScore(userId, item.getDishId(), ctx);
+                double s3 = calculateAmmbcScore(userId, item.getDishId(), ctx);
+                double fused = weights[0] * s1 + weights[1] * s2 + weights[2] * s3;
+                item.setScore(Math.min(1.0, Math.max(0.0, fused)));
+                scored.add(item);
+            }
+
+            scored.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+            return scored.stream().map(RecommendationDishVO::getDishId).collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("评测单条失败 userId={} flightId={}", userId, flightId, e);
+            return null;
+        }
+    }
+
+    /** 随机基线：获取候选菜品并随机打乱 */
+    private List<Integer> evaluateRankingRandom(Integer flightId, Integer userId) {
+        FlightInfo fi = flightInfoMapper.getById(flightId);
+        if (fi == null) return null;
+        List<Integer> cts = resolveCabinTypes(fi, userId);
+        List<RecommendationDishVO> candidates = recommendationMapper.listCandidateDishes(flightId, null, null, 30, cts);
+        if (candidates.isEmpty()) return null;
+        List<Integer> ids = candidates.stream().map(RecommendationDishVO::getDishId).filter(Objects::nonNull).collect(Collectors.toList());
+        Collections.shuffle(ids);
+        return ids;
+    }
+
+    /** 流行度基线：按曝光次数降序排列 */
+    private List<Integer> evaluateRankingPopular(List<Map<String, Object>> logsBefore, Integer flightId, Integer userId) {
+        FlightInfo fi = flightInfoMapper.getById(flightId);
+        if (fi == null) return null;
+        List<Integer> cts = resolveCabinTypes(fi, userId);
+        List<RecommendationDishVO> candidates = recommendationMapper.listCandidateDishes(flightId, null, null, 30, cts);
+        if (candidates.isEmpty()) return null;
+        // 统计曝光次数
+        Map<Integer, Integer> exposure = new HashMap<>();
+        for (Map<String, Object> row : logsBefore) {
+            String rd = row.get("recommendedDishes") == null ? "" : String.valueOf(row.get("recommendedDishes"));
+            for (Integer did : extractAllDishIds(rd)) {
+                exposure.merge(did, 1, Integer::sum);
+            }
+        }
+        List<RecommendationDishVO> sorted = new ArrayList<>(candidates);
+        sorted.sort((a, b) -> Integer.compare(
+            exposure.getOrDefault(b.getDishId(), 0),
+            exposure.getOrDefault(a.getDishId(), 0)));
+        return sorted.stream().map(RecommendationDishVO::getDishId).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    private List<Integer> resolveCabinTypes(FlightInfo flightInfo, Integer userId) {
+        User user = userMapper.getById(userId);
+        int cabinType = user != null && user.getCabinType() != null ? user.getCabinType() : CABIN_ECONOMY;
+        if (cabinType == CABIN_FIRST) {
+            return Arrays.asList(CABIN_FIRST, CABIN_BUSINESS, CABIN_ECONOMY);
+        }
+        if (cabinType == CABIN_BUSINESS) {
+            return Arrays.asList(CABIN_BUSINESS, CABIN_ECONOMY);
+        }
+        return Collections.singletonList(CABIN_ECONOMY);
+    }
+
+    /**
+     * 亚采样评测：在 45 / 60 / 90 三档用户规模下对比自适应融合与固定权重。
+     * 验证"自适应机制随数据规模增长而改善"的趋势假设。
+     */
+    @GetMapping("/recommendation/evaluate/subsample")
+    public Result<Map<String, Object>> evaluateSubsample() {
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        if (allLogs == null || allLogs.size() < 30) {
+            return Result.error("日志数量不足");
+        }
+
+        // 收集所有 userId
+        Set<Integer> allUserIds = new HashSet<>();
+        for (Map<String, Object> row : allLogs) {
+            Integer uid = parseInt(row.get("userId"));
+            if (uid != null) allUserIds.add(uid);
+        }
+        List<Integer> userIdList = new ArrayList<>(allUserIds);
+        Collections.shuffle(userIdList, new Random(42)); // 固定种子可复现
+
+        int[] sizes = {45, 60, Math.min(90, userIdList.size())};
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalUsers", userIdList.size());
+        List<Map<String, Object>> scaleResults = new ArrayList<>();
+
+        for (int size : sizes) {
+            if (size > userIdList.size()) continue;
+            Set<Integer> subset = new HashSet<>(userIdList.subList(0, size));
+
+            // 仅使用子集用户的日志
+            List<Map<String, Object>> subsetLogs = new ArrayList<>();
+            for (Map<String, Object> row : allLogs) {
+                Integer uid = parseInt(row.get("userId"));
+                if (uid != null && subset.contains(uid)) subsetLogs.add(row);
+            }
+            subsetLogs.sort((a, b) -> {
+                Object ta = a.get("createTime"), tb = b.get("createTime");
+                if (ta == null && tb == null) return 0;
+                if (ta == null) return -1;
+                if (tb == null) return 1;
+                return String.valueOf(ta).compareTo(String.valueOf(tb));
+            });
+
+            // 提取 MANUAL_SELECTED 作为 ground truth
+            List<Map<String, Object>> manualLogs = new ArrayList<>();
+            for (Map<String, Object> row : subsetLogs) {
+                String fb = row.get("userFeedback") == null ? "" : String.valueOf(row.get("userFeedback"));
+                if (fb.startsWith("MANUAL_SELECTED")) manualLogs.add(row);
+            }
+            int splitIdx = Math.max(1, (int) (manualLogs.size() * 0.8));
+            List<Map<String, Object>> testLogs = manualLogs.subList(splitIdx, manualLogs.size());
+            if (testLogs.size() < 3) testLogs = manualLogs.subList(Math.max(0, manualLogs.size() - 3), manualLogs.size());
+
+            double[] fixedW = {0.60, 0.25, 0.15};
+            int[] fixedMetrics = runEvalOnLogs(subsetLogs, testLogs, fixedW);
+            int[] adaptiveMetrics = runEvalOnLogs(subsetLogs, testLogs, null);
+            int[] randomMetrics = runEvalRandom(subsetLogs, testLogs);
+            int[] popularMetrics = runEvalPopular(subsetLogs, testLogs);
+            int tsz = testLogs.size();
+
+            Map<String, Object> row = new HashMap<>();
+            row.put("userCount", size);
+            row.put("testSize", tsz);
+            row.put("manualLogs", manualLogs.size());
+            // 四个算法 × 四个K值
+            for (String key : new String[]{"fixed","adaptive","random","popular"}) {
+                int[] m = key.equals("fixed")?fixedMetrics:key.equals("adaptive")?adaptiveMetrics:key.equals("random")?randomMetrics:popularMetrics;
+                row.put(key+"Top1", tsz>0?String.format("%.1f%%",100.0*m[0]/tsz):"N/A");
+                row.put(key+"Top3", tsz>0?String.format("%.1f%%",100.0*m[1]/tsz):"N/A");
+                row.put(key+"Top5", tsz>0?String.format("%.1f%%",100.0*m[2]/tsz):"N/A");
+                row.put(key+"Top10", tsz>0?String.format("%.1f%%",100.0*m[3]/tsz):"N/A");
+                row.put(key+"MRR", tsz>0?String.format("%.4f",m[4]/(double)tsz/10000.0):"N/A");
+            }
+            row.put("top3Gap", tsz>0?String.format("%+.1f%%",100.0*(adaptiveMetrics[1]-fixedMetrics[1])/tsz):"N/A");
+            scaleResults.add(row);
+        }
+
+        result.put("scales", scaleResults);
+        return Result.success(result);
+    }
+
+    /** 对指定测试集运行评测，返回 [top1, top3, top5, top10, mrrSum×10000] */
+    private int[] runEvalOnLogs(List<Map<String, Object>> allLogs,
+                                List<Map<String, Object>> testLogs,
+                                double[] fixedWeights) {
+        int top1 = 0, top3 = 0, top5 = 0, top10 = 0;
+        double mrrSum = 0.0;
+        for (Map<String, Object> testLog : testLogs) {
+            Integer uid = parseInt(testLog.get("userId"));
+            Integer fid = parseInt(testLog.get("flightId"));
+            Integer truthDishId = extractDishIdFromText(testLog.get("userFeedback"));
+            if (uid == null || fid == null || truthDishId == null) continue;
+            Object testTime = testLog.get("createTime");
+            List<Map<String, Object>> logsBefore = new ArrayList<>();
+            for (Map<String, Object> row2 : allLogs) {
+                Object t = row2.get("createTime");
+                if (t != null && testTime != null
+                        && String.valueOf(t).compareTo(String.valueOf(testTime)) < 0) {
+                    logsBefore.add(row2);
+                }
+            }
+            List<Integer> ranked = evaluateRanking(uid, fid, truthDishId, logsBefore, fixedWeights);
+            if (ranked == null || ranked.isEmpty()) continue;
+            if (Objects.equals(ranked.get(0), truthDishId)) top1++;
+            for (int k = 0; k < Math.min(3, ranked.size()); k++)
+                if (Objects.equals(ranked.get(k), truthDishId)) { top3++; break; }
+            for (int k = 0; k < Math.min(5, ranked.size()); k++)
+                if (Objects.equals(ranked.get(k), truthDishId)) { top5++; break; }
+            for (int k = 0; k < Math.min(10, ranked.size()); k++)
+                if (Objects.equals(ranked.get(k), truthDishId)) { top10++; break; }
+            for (int r = 0; r < ranked.size(); r++)
+                if (Objects.equals(ranked.get(r), truthDishId)) { mrrSum += 1.0/(r+1); break; }
+        }
+        return new int[]{top1, top3, top5, top10, (int)Math.round(mrrSum*10000)};
+    }
+
+    /** 随机基线：shuffle 候选列表 */
+    private int[] runEvalRandom(List<Map<String, Object>> allLogs,
+                                List<Map<String, Object>> testLogs) {
+        int top1=0,top3=0,top5=0,top10=0;
+        double mrr=0;
+        for (Map<String, Object> tl : testLogs) {
+            Integer uid=parseInt(tl.get("userId")), fid=parseInt(tl.get("flightId"));
+            Integer tid=extractDishIdFromText(tl.get("userFeedback"));
+            if (uid==null||fid==null||tid==null) continue;
+            Object tt=tl.get("createTime");
+            List<Map<String, Object>> before = new ArrayList<>();
+            for (Map<String, Object> r : allLogs) {
+                Object t=r.get("createTime");
+                if (t!=null&&tt!=null&&String.valueOf(t).compareTo(String.valueOf(tt))<0) before.add(r);
+            }
+            List<Integer> ranked = evaluateRanking(uid,fid,tid,before,new double[]{-1,0,0}); // -1 triggers random
+            if (ranked==null||ranked.isEmpty()) continue;
+            if (Objects.equals(ranked.get(0),tid)) top1++;
+            for (int k=0;k<Math.min(3,ranked.size());k++) if(Objects.equals(ranked.get(k),tid)){top3++;break;}
+            for (int k=0;k<Math.min(5,ranked.size());k++) if(Objects.equals(ranked.get(k),tid)){top5++;break;}
+            for (int k=0;k<Math.min(10,ranked.size());k++) if(Objects.equals(ranked.get(k),tid)){top10++;break;}
+            for (int r=0;r<ranked.size();r++) if(Objects.equals(ranked.get(r),tid)){mrr+=1.0/(r+1);break;}
+        }
+        return new int[]{top1,top3,top5,top10,(int)Math.round(mrr*10000)};
+    }
+
+    /** 流行度基线：按菜品曝光次数降序排列 */
+    private int[] runEvalPopular(List<Map<String, Object>> allLogs,
+                                  List<Map<String, Object>> testLogs) {
+        int top1=0,top3=0,top5=0,top10=0; double mrr=0;
+        for (Map<String, Object> tl : testLogs) {
+            Integer uid=parseInt(tl.get("userId")), fid=parseInt(tl.get("flightId"));
+            Integer tid=extractDishIdFromText(tl.get("userFeedback"));
+            if (uid==null||fid==null||tid==null) continue;
+            Object tt=tl.get("createTime");
+            List<Map<String, Object>> before = new ArrayList<>();
+            for (Map<String, Object> r : allLogs) {
+                Object t=r.get("createTime");
+                if (t!=null&&tt!=null&&String.valueOf(t).compareTo(String.valueOf(tt))<0) before.add(r);
+            }
+            List<Integer> ranked = evaluateRanking(uid,fid,tid,before,new double[]{-2,0,0}); // -2 triggers popularity
+            if (ranked==null||ranked.isEmpty()) continue;
+            if (Objects.equals(ranked.get(0),tid)) top1++;
+            for (int k=0;k<Math.min(3,ranked.size());k++) if(Objects.equals(ranked.get(k),tid)){top3++;break;}
+            for (int k=0;k<Math.min(5,ranked.size());k++) if(Objects.equals(ranked.get(k),tid)){top5++;break;}
+            for (int k=0;k<Math.min(10,ranked.size());k++) if(Objects.equals(ranked.get(k),tid)){top10++;break;}
+            for (int r=0;r<ranked.size();r++) if(Objects.equals(ranked.get(r),tid)){mrr+=1.0/(r+1);break;}
+        }
+        return new int[]{top1,top3,top5,top10,(int)Math.round(mrr*10000)};
+    }
+
+    /**
+     * 菜品口味标签相似度分析：统计候选菜品之间的标签重叠度，
+     * 用于讨论 PMFUP 在候选池有限时的优势边界。
+     */
+    /**
+     * Bootstrap 重采样评测：从 86 用户中重采样到 200/500/1000 人规模，
+     * 对比自适应与固定权重的性能差距是否随规模扩大而收敛。
+     * 用于验证"自适应机制随数据增长而改善"的趋势。
+     */
+    @GetMapping("/recommendation/evaluate/bootstrap")
+    public Result<Map<String, Object>> evaluateBootstrap() {
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        if (allLogs == null || allLogs.size() < 30) return Result.error("日志数量不足");
+
+        // 按用户分组日志
+        Map<Integer, List<Map<String, Object>>> userLogs = new LinkedHashMap<>();
+        for (Map<String, Object> row : allLogs) {
+            Integer uid = parseInt(row.get("userId"));
+            if (uid != null) userLogs.computeIfAbsent(uid, k -> new ArrayList<>()).add(row);
+        }
+        List<Integer> userIds = new ArrayList<>(userLogs.keySet());
+        Random rng = new Random(42);
+
+        int[] sizes = {200, 500, 1000};
+        Map<String, Object> result = new HashMap<>();
+        result.put("baseUserCount", userIds.size());
+        List<Map<String, Object>> scaleResults = new ArrayList<>();
+
+        for (int size : sizes) {
+            // Bootstrap 重采样
+            List<Map<String, Object>> bootLogs = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                int idx = rng.nextInt(userIds.size());
+                bootLogs.addAll(userLogs.get(userIds.get(idx)));
+            }
+
+            bootLogs.sort((a, b) -> {
+                Object ta = a.get("createTime"), tb = b.get("createTime");
+                if (ta == null && tb == null) return 0;
+                if (ta == null) return -1; if (tb == null) return 1;
+                return String.valueOf(ta).compareTo(String.valueOf(tb));
+            });
+
+            List<Map<String, Object>> manual = new ArrayList<>();
+            for (Map<String, Object> row : bootLogs) {
+                String fb = row.get("userFeedback") == null ? "" : String.valueOf(row.get("userFeedback"));
+                if (fb.startsWith("MANUAL_SELECTED")) manual.add(row);
+            }
+            int splitIdx = Math.max(1, (int) (manual.size() * 0.8));
+            List<Map<String, Object>> test = manual.subList(splitIdx, manual.size());
+            if (test.size() < 5) test = manual.subList(Math.max(0, manual.size() - 5), manual.size());
+
+            double[] fixedW = {0.60, 0.25, 0.15};
+            int[] fm = runEvalOnLogs(bootLogs, test, fixedW);
+            int[] am = runEvalOnLogs(bootLogs, test, null);
+            int tsz = test.size();
+
+            Map<String, Object> row = new HashMap<>();
+            row.put("bootSize", size);
+            row.put("testSize", tsz);
+            row.put("fixedTop1", tsz > 0 ? String.format("%.1f%%", 100.0*fm[0]/tsz) : "N/A");
+            row.put("adaptiveTop1", tsz > 0 ? String.format("%.1f%%", 100.0*am[0]/tsz) : "N/A");
+            row.put("top1Gap", tsz > 0 ? String.format("%+.1f%%", 100.0*(am[0]-fm[0])/tsz) : "N/A");
+            row.put("fixedTop3", tsz > 0 ? String.format("%.1f%%", 100.0*fm[1]/tsz) : "N/A");
+            row.put("adaptiveTop3", tsz > 0 ? String.format("%.1f%%", 100.0*am[1]/tsz) : "N/A");
+            row.put("top3Gap", tsz > 0 ? String.format("%+.1f%%", 100.0*(am[1]-fm[1])/tsz) : "N/A");
+            scaleResults.add(row);
+        }
+
+        result.put("scales", scaleResults);
+        return Result.success(result);
+    }
+
+    /** 诊断接口：打印评测的中间状态，定位全零问题 */
+    @GetMapping("/recommendation/evaluate/debug")
+    public Result<Map<String, Object>> evaluateDebug() {
+        Map<String, Object> result = new HashMap<>();
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+
+        // 统计日志来源
+        Set<Integer> allUserIds = new HashSet<>();
+        int manualCount = 0, hasFlightId = 0;
+        Map<Integer, Integer> flightIdCounts = new HashMap<>();
+        for (Map<String, Object> row : allLogs) {
+            Integer uid = parseInt(row.get("userId"));
+            Integer fid = parseInt(row.get("flightId"));
+            if (uid != null) allUserIds.add(uid);
+            String fb = row.get("userFeedback") == null ? "" : String.valueOf(row.get("userFeedback"));
+            if (fb.startsWith("MANUAL_SELECTED")) {
+                manualCount++;
+                if (fid != null) {
+                    hasFlightId++;
+                    flightIdCounts.merge(fid, 1, Integer::sum);
+                }
+            }
+        }
+        result.put("totalLogs", allLogs.size());
+        result.put("totalUserIds", allUserIds.size());
+        result.put("manualLogs", manualCount);
+        result.put("manualWithFlightId", hasFlightId);
+        result.put("flightIdDistribution", flightIdCounts);
+
+        // 跑一条 MANUAL_SELECTED 日志的单步诊断
+        Map<String, Object> testLog = null;
+        for (Map<String, Object> row : allLogs) {
+            String fb = row.get("userFeedback") == null ? "" : String.valueOf(row.get("userFeedback"));
+            if (fb.startsWith("MANUAL_SELECTED")) {
+                Integer fid = parseInt(row.get("flightId"));
+                if (fid != null) { testLog = row; break; }
+            }
+        }
+        if (testLog != null) {
+            Integer uid = parseInt(testLog.get("userId"));
+            Integer fid = parseInt(testLog.get("flightId"));
+            Integer tid = extractDishIdFromText(testLog.get("userFeedback"));
+            result.put("sampleUserId", uid);
+            result.put("sampleFlightId", fid);
+            result.put("sampleDishId", tid);
+
+            FlightInfo fi = flightInfoMapper.getById(fid);
+            result.put("flightExists", fi != null);
+            if (fi != null) {
+                result.put("flightNumber", fi.getFlightNumber());
+                result.put("flightDeparture", fi.getDeparture());
+                result.put("flightDestination", fi.getDestination());
+                List<Integer> cts = resolveCabinTypes(fi, uid);
+                result.put("cabinTypes", cts);
+                List<RecommendationDishVO> candidates = recommendationMapper.listCandidateDishes(fid, null, null, 10, cts);
+                result.put("candidateCount", candidates.size());
+                if (!candidates.isEmpty()) {
+                    List<String> dishNames = new ArrayList<>();
+                    for (RecommendationDishVO d : candidates) {
+                        if (d.getDishName() != null) dishNames.add(d.getDishName());
+                    }
+                    result.put("candidateDishes", dishNames.subList(0, Math.min(5, dishNames.size())));
+                    result.put("truthInCandidates", candidates.stream().anyMatch(d -> Objects.equals(d.getDishId(), tid)));
+                }
+            }
+        }
+        return Result.success(result);
+    }
+
+    @GetMapping("/recommendation/dish-similarity")
+    public Result<Map<String, Object>> dishSimilarity() {
+        // 取所有启用且有库存的菜品
+        List<RecommendationDishVO> dishes = recommendationMapper.listCandidateDishes(
+                null, null, null, 50, Arrays.asList(CABIN_FIRST, CABIN_BUSINESS, CABIN_ECONOMY));
+        if (dishes == null || dishes.size() < 2) return Result.error("菜品数量不足");
+
+        // 统计每道菜品的口味标签
+        Map<String, Set<String>> dishTags = new LinkedHashMap<>();
+        for (RecommendationDishVO d : dishes) {
+            if (d.getDishName() == null || d.getFlavorTags() == null) continue;
+            Set<String> tags = parseFlavorTokens(d.getFlavorTags());
+            if (!tags.isEmpty()) dishTags.put(d.getDishName(), tags);
+        }
+
+        // 计算两两之间的 Jaccard 相似度和重叠标签
+        List<Map<String, Object>> pairs = new ArrayList<>();
+        List<String> names = new ArrayList<>(dishTags.keySet());
+        double totalOverlap = 0;
+        int pairCount = 0;
+        for (int i = 0; i < names.size(); i++) {
+            for (int j = i + 1; j < names.size(); j++) {
+                Set<String> a = dishTags.get(names.get(i));
+                Set<String> b = dishTags.get(names.get(j));
+                Set<String> overlap = new HashSet<>(a);
+                overlap.retainAll(b);
+                Set<String> union = new HashSet<>(a);
+                union.addAll(b);
+                double jaccard = union.isEmpty() ? 0 : (double) overlap.size() / union.size();
+                totalOverlap += overlap.size();
+                pairCount++;
+                Map<String, Object> pair = new HashMap<>();
+                pair.put("dishA", names.get(i)); pair.put("dishB", names.get(j));
+                pair.put("tagsA", String.join(",", a)); pair.put("tagsB", String.join(",", b));
+                pair.put("overlapCount", overlap.size());
+                pair.put("jaccard", String.format("%.2f", jaccard));
+                pairs.add(pair);
+            }
+        }
+
+        // 统计有多少菜品有唯一标签组合
+        Set<String> uniqueCombos = new HashSet<>();
+        int dupCount = 0;
+        for (String name : names) {
+            String combo = String.join(",", new TreeSet<>(dishTags.get(name)));
+            if (!uniqueCombos.add(combo)) dupCount++;
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalDishes", names.size());
+        result.put("totalPairs", pairCount);
+        result.put("avgOverlapPerPair", pairCount > 0 ? String.format("%.2f", totalOverlap / pairCount) : "0");
+        result.put("uniqueTagCombos", uniqueCombos.size());
+        result.put("dishesSharingCombo", dupCount);
+        result.put("note", uniqueCombos.size() < names.size()
+                ? "存在标签组合完全相同的菜品，PMFUP 无法区分这些菜品的优劣"
+                : "每道菜品标签组合互不相同，PMFUP 在口味维度上可区分所有菜品");
+        result.put("pairs", pairs);
         return Result.success(result);
     }
 
@@ -1167,17 +1811,17 @@ public class RecommendationController {
         private final Map<Integer, Set<String>> dishFlavorTags = new HashMap<>();
     }
 
-    private String validatePreference(UserPreference preference) {
-        if (preference == null) {
+    private String validatePreference(String mealTypePreferences, String flavorPreferences) {
+        if (mealTypePreferences == null && flavorPreferences == null) {
             return "偏好参数不能为空";
         }
-        Set<Integer> mealTypes = parsePreferenceMealTypes(preference.getMealTypePreferences());
+        Set<Integer> mealTypes = parsePreferenceMealTypes(mealTypePreferences);
         for (Integer mt : mealTypes) {
             if (!ALLOWED_MEAL_TYPES.contains(mt)) {
                 return "mealTypePreferences包含非法餐型";
             }
         }
-        List<String> flavors = parseFlavorList(preference.getFlavorPreferences());
+        List<String> flavors = parseFlavorList(flavorPreferences);
         for (String item : flavors) {
             if (!ALLOWED_FLAVORS.contains(item)) {
                 return "flavorPreferences包含非法口味:" + item;

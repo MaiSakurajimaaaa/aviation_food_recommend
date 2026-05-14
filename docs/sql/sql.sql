@@ -1,3 +1,24 @@
+create table employee
+(
+    id          bigint auto_increment
+        primary key,
+    username    varchar(32)       null,
+    name        varchar(32)       null,
+    password    varchar(64)       null,
+    phone       varchar(11)       null,
+    status      tinyint default 1 null,
+    create_time datetime          null,
+    update_time datetime          null,
+    create_user bigint            null,
+    update_user bigint            null,
+    account     varchar(64)       null,
+    gender      tinyint           null,
+    pic         longtext          null,
+    constraint uk_employee_account
+        unique (account)
+)
+    charset = utf8mb4;
+
 create table category
 (
     id          bigint auto_increment
@@ -9,7 +30,10 @@ create table category
     create_time datetime          null,
     update_time datetime          null,
     create_user bigint            null,
-    update_user bigint            null
+    update_user bigint            null,
+    constraint fk_category_create_user
+        foreign key (create_user) references employee (id)
+            on update cascade on delete set null
 )
     charset = utf8mb4;
 
@@ -31,45 +55,10 @@ create table dish
     detail      varchar(255)      null,
     constraint fk_dish_category
         foreign key (category_id) references category (id)
+            on update cascade on delete set null,
+    constraint fk_dish_create_user
+        foreign key (create_user) references employee (id)
             on update cascade on delete set null
-)
-    charset = utf8mb4;
-
-create table dish_flavor
-(
-    id          bigint auto_increment
-        primary key,
-    dish_id     bigint       null,
-    name        varchar(32)  null,
-    value       varchar(200) null,
-    create_time datetime     null,
-    update_time datetime     null,
-    constraint fk_dish_flavor_dish
-        foreign key (dish_id) references dish (id)
-            on update cascade on delete cascade
-)
-    charset = utf8mb4;
-
-create table employee
-(
-    id          bigint auto_increment
-        primary key,
-    username    varchar(32)       null,
-    name        varchar(32)       null,
-    password    varchar(64)       null,
-    phone       varchar(11)       null,
-    sex         varchar(2)        null,
-    status      tinyint default 1 null,
-    create_time datetime          null,
-    update_time datetime          null,
-    create_user bigint            null,
-    update_user bigint            null,
-    account     varchar(64)       null,
-    age         int               null,
-    gender      tinyint           null,
-    pic         longtext          null,
-    constraint uk_employee_account
-        unique (account)
 )
     charset = utf8mb4;
 
@@ -97,26 +86,29 @@ END;
 
 create table flight_info
 (
-    id                  bigint auto_increment
+    id                 bigint auto_increment
         primary key,
-    flight_number       varchar(20)       null,
-    departure           varchar(50)       null,
-    destination         varchar(50)       null,
-    departure_time      datetime          null,
-    arrival_time        datetime          null,
-    duration_minutes    int               null,
-    meal_count          tinyint           null,
-    meal_times          json              null,
-    selection_deadline  datetime          null,
-    status              tinyint default 1 null,
-    create_user         bigint            null,
-    update_user         bigint            null,
-    create_time         datetime          null,
-    update_time         datetime          null,
-    actual_arrival_time datetime          null comment '实际到达时间',
-    flight_status       tinyint default 1 null comment '航班状态:1计划中,2飞行中,3已到达,4取消'
+    flight_number      varchar(20)       null,
+    departure          varchar(50)       null,
+    destination        varchar(50)       null,
+    departure_time     datetime          null,
+    arrival_time       datetime          null,
+    duration_minutes   int               null,
+    meal_count         tinyint           null,
+    selection_deadline datetime          null,
+    status             tinyint default 1 null,
+    create_user        bigint            null,
+    update_user        bigint            null,
+    create_time        datetime          null,
+    update_time        datetime          null,
+    constraint fk_flight_create_user
+        foreign key (create_user) references employee (id)
+            on update cascade on delete set null
 )
     charset = utf8mb4;
+
+create index idx_flight_number
+    on flight_info (flight_number);
 
 create table flight_announcement
 (
@@ -129,47 +121,57 @@ create table flight_announcement
     create_user bigint            null,
     create_time datetime          null,
     update_time datetime          null,
+    constraint fk_flight_announcement_create_user
+        foreign key (create_user) references employee (id)
+            on update cascade on delete set null,
     constraint fk_flight_announcement_flight
         foreign key (flight_id) references flight_info (id)
             on update cascade on delete cascade
 )
     charset = utf8mb4;
 
-create index idx_flight_number
-    on flight_info (flight_number);
-
-create table flight_route_dish
+create table flight_dish
 (
     id          bigint auto_increment
         primary key,
-    departure   varchar(50)       null,
-    destination varchar(50)       null,
-    dish_id     bigint            null,
-    dish_source tinyint           null,
+    flight_id   bigint            not null,
+    dish_id     bigint            not null,
+    cabin_type  tinyint default 3 not null comment '舱位类型',
     sort        int               null,
-    cabin_type  tinyint default 3 not null comment '舱位类型:1头等舱,2商务舱,3经济舱',
-    constraint fk_flight_route_dish_dish
+    create_time datetime          null,
+    update_time datetime          null,
+    create_user bigint            null,
+    update_user bigint            null,
+    constraint fk_flight_dish_create_user
+        foreign key (create_user) references employee (id)
+            on update cascade on delete set null,
+    constraint fk_flight_dish_dish
         foreign key (dish_id) references dish (id)
+            on update cascade on delete cascade,
+    constraint fk_flight_dish_flight
+        foreign key (flight_id) references flight_info (id)
             on update cascade on delete cascade
 )
     charset = utf8mb4;
 
 create table user
 (
-    id                   bigint auto_increment
+    id                    bigint auto_increment
         primary key,
-    openid               varchar(64)       null,
-    phone                varchar(11)       null,
-    name                 varchar(32)       null,
-    id_number            varchar(255)      null,
-    frequent_flyer_no    varchar(32)       null,
-    preference_completed tinyint default 0 null,
-    current_flight_id    bigint            null,
-    create_time          datetime          null,
-    update_time          datetime          null,
-    gender               tinyint           null,
-    pic                  longtext          null,
-    cabin_type           tinyint default 3 not null comment '舱位类型:1头等舱,2商务舱,3经济舱',
+    openid                varchar(64)       null,
+    phone                 varchar(11)       null,
+    name                  varchar(32)       null,
+    id_number             varchar(255)      null,
+    preference_completed  tinyint default 0 null,
+    current_flight_id     bigint            null,
+    create_time           datetime          null,
+    update_time           datetime          null,
+    gender                tinyint           null,
+    pic                   longtext          null,
+    cabin_type            tinyint default 3 not null comment '舱位类型:1头等舱,2商务舱,3经济舱',
+    meal_type_preferences json              null comment '餐食类型偏好',
+    flavor_preferences    json              null comment '口味偏好',
+    dietary_notes         varchar(255)      null comment '饮食备注',
     constraint fk_user_current_flight
         foreign key (current_flight_id) references flight_info (id)
             on update cascade on delete set null
@@ -191,7 +193,6 @@ create table flight_service_rating
     defer_count      int         default 0         not null,
     submitted_at     datetime                      null,
     expire_at        datetime                      null,
-    channel          varchar(16) default 'miniapp' null,
     create_time      datetime                      null,
     update_time      datetime                      null,
     constraint uk_rating_user_flight
@@ -217,7 +218,6 @@ create table meal_selection
     user_id     bigint            null,
     flight_id   bigint            null,
     meal_order  tinyint default 1 not null,
-    seat_number varchar(10)       null,
     create_time datetime          null,
     update_time datetime          null,
     constraint uk_meal_selection_user_flight_order
@@ -257,25 +257,35 @@ create index idx_recommendation_user
 create index idx_user_openid
     on user (openid);
 
-create table user_preference
-(
-    id                    bigint auto_increment
-        primary key,
-    user_id               bigint       null,
-    meal_type_preferences json         null,
-    flavor_preferences    json         null,
-    allergens             json         null,
-    dietary_notes         varchar(255) null,
-    create_time           datetime     null,
-    update_time           datetime     null,
-    constraint uk_user_preference_user
-        unique (user_id),
-    constraint fk_user_preference_user
-        foreign key (user_id) references user (id)
-            on update cascade on delete cascade
-)
-    charset = utf8mb4;
-UPDATE recommendation_log SET user_rating = NULL
-WHERE user_id = 10
-  AND user_feedback LIKE 'MANUAL_SELECTED%';
+-- ====================================================
+-- 清除 aviation_food_recommend 所有数据（保留表结构）
+-- 执行前请确认：此操作不可逆
+-- ====================================================
+
+USE aviation_food_recommend;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- 按依赖链从叶子节点向根节点删除
+TRUNCATE TABLE recommendation_log;
+TRUNCATE TABLE flight_service_rating;
+TRUNCATE TABLE meal_selection;
+TRUNCATE TABLE flight_announcement;
+TRUNCATE TABLE flight_dish;
+TRUNCATE TABLE user;
+TRUNCATE TABLE dish;
+TRUNCATE TABLE category;
+TRUNCATE TABLE flight_info;
+TRUNCATE TABLE employee;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- 验证
+SELECT table_name AS '表名', table_rows AS '行数'
+FROM information_schema.tables
+WHERE table_schema = 'aviation_food_recommend'
+  AND table_type = 'BASE TABLE'
+ORDER BY table_name;
+
+
+
 

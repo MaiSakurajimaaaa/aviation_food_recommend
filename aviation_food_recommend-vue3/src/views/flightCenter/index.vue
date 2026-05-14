@@ -7,9 +7,12 @@ import {
   deleteFlightPassengerAPI,
   getFlightListAPI,
   getFlightPassengersAPI,
+  searchExistingFlightPassengersAPI,
+  searchFlightPassengersAPI,
   updateFlightPassengerAPI,
 } from '@/api/flight'
 import type {
+  ExistingPassengerCandidateItem,
   FlightItem,
   FlightPassengerItem,
   FlightPassengerUpsertPayload,
@@ -36,16 +39,41 @@ const selectedFlight = ref<FlightItem | null>(null)
 const passengerDialogVisible = ref(false)
 const editingPassengerId = ref<number | null>(null)
 const passengerForm = ref({
+  sourceType: 1,
+  existingUserId: undefined as number | undefined,
+  existingKeyword: '',
   name: '',
   idNumber: '',
   phone: '',
   gender: 1,
   cabinType: 3,
 })
+const existingCandidates = ref<ExistingPassengerCandidateItem[]>([])
+const existingLoading = ref(false)
 const flightsPage = ref(1)
 const flightsPageSize = ref(10)
 const passengersPage = ref(1)
 const passengersPageSize = ref(10)
+const globalMode = computed(() => !selectedFlight.value)
+const passengerSearch = reactive({
+  flightNumber: '',
+  name: '',
+  idNumber: '',
+})
+
+const filteredPassengers = computed(() => {
+  if (!globalMode.value) {
+    const name = passengerSearch.name.trim()
+    const idNumber = passengerSearch.idNumber.trim()
+    if (!name && !idNumber) return passengers.value
+    return passengers.value.filter((item) => {
+      const nameMatch = !name || (item.name || '').includes(name)
+      const idMatch = !idNumber || (item.idNumber || '').includes(idNumber)
+      return nameMatch && idMatch
+    })
+  }
+  return passengers.value
+})
 
 const FLIGHT_NUMBER_REGEX = /^[A-Za-z0-9-]+$/
 const HAS_ALNUM_REGEX = /[A-Za-z0-9]/
@@ -136,8 +164,25 @@ const pagedFlights = computed(() => {
 
 const pagedPassengers = computed(() => {
   const start = (passengersPage.value - 1) * passengersPageSize.value
-  return passengers.value.slice(start, start + passengersPageSize.value)
+  return filteredPassengers.value.slice(start, start + passengersPageSize.value)
 })
+
+const searchPassengers = () => {
+  passengersPage.value = 1
+  if (globalMode.value) {
+    loadGlobalPassengers()
+  }
+}
+
+const resetPassengerSearch = () => {
+  passengerSearch.flightNumber = ''
+  passengerSearch.name = ''
+  passengerSearch.idNumber = ''
+  passengersPage.value = 1
+  if (globalMode.value) {
+    passengers.value = []
+  }
+}
 
 const syncFromRoute = () => {
   const queryFlightNumber = String(route.query.flightNumber || '')
@@ -159,30 +204,90 @@ const loadPassengers = async (flightId: number) => {
   passengers.value = res.data || []
 }
 
+const loadGlobalPassengers = async () => {
+  const fn = passengerSearch.flightNumber.trim()
+  const n = passengerSearch.name.trim()
+  const id = passengerSearch.idNumber.trim()
+  if (!fn && !n && !id) {
+    passengers.value = []
+    return
+  }
+  passengerLoading.value = true
+  const { data: res } = await searchFlightPassengersAPI({
+    flightNumber: fn || undefined,
+    name: n || undefined,
+    idNumber: id || undefined,
+  })
+  passengerLoading.value = false
+  if (res.code === 0) {
+    passengers.value = res.data || []
+  }
+}
+
 const selectFlight = (row: FlightItem) => {
   selectedFlight.value = row
+  resetPassengerSearch()
   loadPassengers(row.id)
 }
 
+const deselectFlight = () => {
+  selectedFlight.value = null
+  passengers.value = []
+  resetPassengerSearch()
+}
+
+const selectedFlightForDialog = ref<number | undefined>(undefined)
+
 const openAddPassengerDialog = () => {
-  if (!selectedFlight.value) {
-    ElMessage.warning('请先选择航班')
-    return
-  }
   editingPassengerId.value = null
+  selectedFlightForDialog.value = selectedFlight.value?.id
   passengerForm.value = {
+    sourceType: 1,
+    existingUserId: undefined,
+    existingKeyword: '',
     name: '',
     idNumber: '',
     phone: '',
     gender: 1,
     cabinType: 3,
   }
+  existingCandidates.value = []
   passengerDialogVisible.value = true
+}
+
+const searchExistingPassengers = async () => {
+  const keyword = passengerForm.value.existingKeyword.trim()
+  if (!keyword) {
+    ElMessage.warning('请输入老用户搜索关键词（姓名/身份证/手机号）')
+    return
+  }
+  existingLoading.value = true
+  const { data: res } = await searchExistingFlightPassengersAPI({ keyword, limit: 20 })
+  existingLoading.value = false
+  if (res.code !== 0) return
+  existingCandidates.value = res.data || []
+  if (!existingCandidates.value.length) {
+    ElMessage.warning('未搜索到匹配老用户，请尝试其他关键词')
+  }
+}
+
+const handleSourceTypeChange = () => {
+  if (passengerForm.value.sourceType === 2) {
+    passengerForm.value.name = ''
+    passengerForm.value.idNumber = ''
+    passengerForm.value.phone = ''
+    return
+  }
+  passengerForm.value.existingUserId = undefined
 }
 
 const openEditPassengerDialog = (row: FlightPassengerItem) => {
   editingPassengerId.value = row.userId
+  selectedFlightForDialog.value = row.flightId
   passengerForm.value = {
+    sourceType: 1,
+    existingUserId: undefined,
+    existingKeyword: '',
     name: row.name || '',
     idNumber: row.idNumber || '',
     phone: row.phone || '',
@@ -193,21 +298,28 @@ const openEditPassengerDialog = (row: FlightPassengerItem) => {
 }
 
 const savePassenger = async () => {
-  if (!selectedFlight.value) {
-    ElMessage.warning('请先选择航班')
+  const flightId = selectedFlightForDialog.value
+  if (!flightId) {
+    ElMessage.warning('请选择航班')
+    return
+  }
+  if (passengerForm.value.sourceType === 2 && !passengerForm.value.existingUserId) {
+    ElMessage.warning('请选择要绑定的老用户')
     return
   }
   if (!passengerForm.value.name.trim()) {
-    ElMessage.warning('请输入客户姓名')
-    return
+    if (passengerForm.value.sourceType === 1) {
+      ElMessage.warning('请输入客户姓名')
+      return
+    }
   }
   const idNumber = passengerForm.value.idNumber?.trim()
-  if (idNumber && !isValidIdNumber(idNumber)) {
+  if (passengerForm.value.sourceType === 1 && idNumber && !isValidIdNumber(idNumber)) {
     ElMessage.warning('身份证号格式不正确')
     return
   }
   const phone = passengerForm.value.phone?.trim()
-  if (phone && !PHONE_REGEX.test(phone)) {
+  if (passengerForm.value.sourceType === 1 && phone && !PHONE_REGEX.test(phone)) {
     ElMessage.warning('手机号格式不正确')
     return
   }
@@ -216,10 +328,12 @@ const savePassenger = async () => {
     return
   }
   const payload: FlightPassengerUpsertPayload = {
-    flightId: selectedFlight.value.id,
-    name: passengerForm.value.name.trim(),
-    idNumber: idNumber ? idNumber.toUpperCase() : undefined,
-    phone: passengerForm.value.phone?.trim() || undefined,
+    flightId,
+    sourceType: passengerForm.value.sourceType,
+    existingUserId: passengerForm.value.sourceType === 2 ? passengerForm.value.existingUserId : undefined,
+    name: passengerForm.value.sourceType === 1 ? passengerForm.value.name.trim() : '',
+    idNumber: passengerForm.value.sourceType === 1 && idNumber ? idNumber.toUpperCase() : undefined,
+    phone: passengerForm.value.sourceType === 1 ? phone || undefined : undefined,
     gender: passengerForm.value.gender,
     cabinType: passengerForm.value.cabinType,
   }
@@ -230,10 +344,14 @@ const savePassenger = async () => {
   } else {
     const { data: res } = await addFlightPassengerAPI(payload)
     if (res.code !== 0) return
-    ElMessage.success('客户新增成功')
+    ElMessage.success(passengerForm.value.sourceType === 2 ? '老客户绑定成功' : '客户新增成功')
   }
   passengerDialogVisible.value = false
-  await loadPassengers(selectedFlight.value.id)
+  if (selectedFlight.value) {
+    await loadPassengers(selectedFlight.value.id)
+  } else {
+    await loadGlobalPassengers()
+  }
 }
 
 const removePassenger = (row: FlightPassengerItem) => {
@@ -250,6 +368,8 @@ const removePassenger = (row: FlightPassengerItem) => {
       ElMessage.success('客户删除成功')
       if (selectedFlight.value) {
         await loadPassengers(selectedFlight.value.id)
+      } else {
+        await loadGlobalPassengers()
       }
     })
     .catch(() => {})
@@ -257,8 +377,7 @@ const removePassenger = (row: FlightPassengerItem) => {
 
 const autoSelectByQuery = () => {
   if (!filteredFlights.value.length) {
-    selectedFlight.value = null
-    passengers.value = []
+    deselectFlight()
     return
   }
   const keyword = appliedQuery.flightNumber.trim().toUpperCase()
@@ -306,10 +425,8 @@ const reset = () => {
   appliedQuery.flightNumber = ''
   appliedQuery.departure = ''
   appliedQuery.destination = ''
-  selectedFlight.value = null
-  passengers.value = []
+  deselectFlight()
   flightsPage.value = 1
-  passengersPage.value = 1
   router.replace({ path: '/flight-center' })
 }
 
@@ -390,18 +507,43 @@ onMounted(async () => {
     <el-card style="margin-top: 14px" v-loading="passengerLoading">
       <template #header>
         <div class="header-row">
-          <span>当前航班客户信息</span>
+          <span>{{ selectedFlight ? '当前航班客户信息' : '全局客户查询' }}</span>
           <div style="display: flex; align-items: center; gap: 12px">
-            <span v-if="selectedFlight" style="color: #409eff">
+            <el-tag v-if="selectedFlight" type="primary" closable @close="deselectFlight">
               {{ selectedFlight.flightNumber }}（{{ selectedFlight.departure }} → {{ selectedFlight.destination }}）
-            </span>
-            <el-button type="primary" @click="openAddPassengerDialog" :disabled="!selectedFlight">新增客户</el-button>
+            </el-tag>
+            <el-button type="primary" @click="openAddPassengerDialog">新增客户</el-button>
           </div>
         </div>
       </template>
 
+      <el-form inline>
+        <el-form-item v-if="!selectedFlight" label="航班号">
+          <el-input v-model="passengerSearch.flightNumber" placeholder="请输入航班号" clearable @change="searchPassengers" style="width: 160px" />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input v-model="passengerSearch.name" placeholder="请输入客户姓名" clearable @change="searchPassengers" />
+        </el-form-item>
+        <el-form-item label="身份证号">
+          <el-input v-model="passengerSearch.idNumber" placeholder="请输入身份证号" clearable @change="searchPassengers" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="searchPassengers">查询</el-button>
+          <el-button @click="resetPassengerSearch">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-table :data="pagedPassengers" border stripe>
         <el-table-column prop="userId" label="客户ID" width="90" />
+        <el-table-column v-if="!selectedFlight" prop="flightNumber" label="航班号" width="120" />
+        <el-table-column v-if="!selectedFlight" label="航线" min-width="160">
+          <template #default="scope">
+            <template v-if="scope.row.departure && scope.row.destination">
+              {{ scope.row.departure }} → {{ scope.row.destination }}
+            </template>
+            <template v-else>-</template>
+          </template>
+        </el-table-column>
         <el-table-column prop="name" label="姓名" min-width="120" />
         <el-table-column prop="idNumber" label="身份证号" min-width="190" />
         <el-table-column prop="age" label="年龄" width="80" />
@@ -434,7 +576,7 @@ onMounted(async () => {
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty :description="selectedFlight ? '当前航班暂无客户' : '请先选择航班查看客户信息'" />
+          <el-empty :description="selectedFlight ? '当前航班暂无客户' : '请输入航班号、姓名或身份证号进行查询'" />
         </template>
       </el-table>
       <el-pagination
@@ -442,7 +584,7 @@ onMounted(async () => {
         v-model:current-page="passengersPage"
         v-model:page-size="passengersPageSize"
         :page-sizes="[10, 15, 20]"
-        :total="passengers.length"
+        :total="filteredPassengers.length"
         layout="total, sizes, prev, pager, next, jumper"
         background
       />
@@ -450,15 +592,57 @@ onMounted(async () => {
 
     <el-dialog v-model="passengerDialogVisible" :title="editingPassengerId ? '编辑客户' : '新增客户'" width="520px">
       <el-form label-width="100px">
-        <el-form-item label="姓名" required>
-          <el-input v-model="passengerForm.name" maxlength="20" show-word-limit />
+        <el-form-item v-if="!selectedFlight" label="绑定航班" required>
+          <el-select v-model="selectedFlightForDialog" placeholder="请选择航班" filterable style="width: 100%">
+            <el-option
+              v-for="flight in allFlights"
+              :key="flight.id"
+              :label="`${flight.flightNumber}（${flight.departure}→${flight.destination}）`"
+              :value="flight.id"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="身份证号">
-          <el-input v-model="passengerForm.idNumber" maxlength="18" />
+        <el-form-item v-if="!editingPassengerId" label="客户类型" required>
+          <el-radio-group v-model="passengerForm.sourceType" @change="handleSourceTypeChange">
+            <el-radio :value="1">新用户录入</el-radio>
+            <el-radio :value="2">老用户搜索选择</el-radio>
+          </el-radio-group>
         </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="passengerForm.phone" maxlength="11" />
-        </el-form-item>
+        <template v-if="passengerForm.sourceType === 1 || editingPassengerId">
+          <el-form-item label="姓名" required>
+            <el-input v-model="passengerForm.name" maxlength="20" show-word-limit />
+          </el-form-item>
+          <el-form-item label="身份证号">
+            <el-input v-model="passengerForm.idNumber" maxlength="18" />
+          </el-form-item>
+          <el-form-item label="手机号">
+            <el-input v-model="passengerForm.phone" maxlength="11" />
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-form-item label="老用户搜索" required>
+            <el-input v-model="passengerForm.existingKeyword" placeholder="输入姓名/身份证/手机号后点击搜索">
+              <template #append>
+                <el-button @click="searchExistingPassengers" :loading="existingLoading">搜索</el-button>
+              </template>
+            </el-input>
+          </el-form-item>
+          <el-form-item label="选择客户" required>
+            <el-select
+              v-model="passengerForm.existingUserId"
+              placeholder="请选择老用户"
+              style="width: 100%"
+              filterable
+            >
+              <el-option
+                v-for="item in existingCandidates"
+                :key="item.userId"
+                :value="item.userId"
+                :label="`${item.name || '-'} / ${item.idNumber || '无证件'} / ${item.phone || '无手机号'}`"
+              />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="性别">
           <el-radio-group v-model="passengerForm.gender">
             <el-radio :value="1">男</el-radio>

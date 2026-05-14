@@ -1,0 +1,97 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/25.0.2 Chrome/128.0.6613.186 Electron/32.2.5 Safari/537.36" version="25.0.2">
+  <diagram name="系统角色用例图" id="LdFcHnD6x6VzZaHbFxzu">
+    <mxGraphModel dx="1788" dy="942" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2stJbY-uqgNKi4WvWABI-30" value="&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 航空旅客智能美食推荐系统" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;fontStyle=1;fontSize=14;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="280" y="80" width="440" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-31" value="管理员" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="60" y="250" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-32" value="旅客" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="850" y="340" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-33" value="航班信息管理" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="360" y="110" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-34" value="菜品资源管理" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="360" y="180" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-35" value="航线配餐管理" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="360" y="250" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-36" value="推荐数据看板" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="360" y="320" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-37" value="评分任务管理" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="360" y="390" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-38" value="航班公告发布" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="360" y="460" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-39" value="旅客信息管理" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="360" y="530" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-40" value="微信授权登录" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="560" y="110" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-41" value="身份核验" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="560" y="180" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-42" value="航班绑定" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="560" y="250" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-43" value="偏好设置" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="560" y="320" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-44" value="餐食预选与推荐" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="560" y="390" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-45" value="航后评分" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="560" y="460" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-46" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-31" target="2stJbY-uqgNKi4WvWABI-33">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-47" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-31" target="2stJbY-uqgNKi4WvWABI-34">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-48" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-31" target="2stJbY-uqgNKi4WvWABI-35">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-49" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-31" target="2stJbY-uqgNKi4WvWABI-36">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-50" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-31" target="2stJbY-uqgNKi4WvWABI-37">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-51" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-31" target="2stJbY-uqgNKi4WvWABI-38">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-52" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-31" target="2stJbY-uqgNKi4WvWABI-39">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-53" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-32" target="2stJbY-uqgNKi4WvWABI-40">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-54" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-32" target="2stJbY-uqgNKi4WvWABI-41">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-55" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-32" target="2stJbY-uqgNKi4WvWABI-42">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-56" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-32" target="2stJbY-uqgNKi4WvWABI-43">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-57" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-32" target="2stJbY-uqgNKi4WvWABI-44">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2stJbY-uqgNKi4WvWABI-58" style="endArrow=none;html=1;strokeColor=#000000;" edge="1" parent="1" source="2stJbY-uqgNKi4WvWABI-32" target="2stJbY-uqgNKi4WvWABI-45">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

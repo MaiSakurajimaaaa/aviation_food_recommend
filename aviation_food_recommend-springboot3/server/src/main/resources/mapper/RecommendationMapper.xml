@@ -255,16 +255,16 @@
     <select id="dashboard" resultType="java.util.HashMap">
         select
             (select count(1) from recommendation_log) as recommendCount,
-            (select count(1) from user_preference) as preferenceUserCount,
+            (select count(1) from user where preference_completed = 1) as preferenceUserCount,
             (select count(1) from meal_selection) as selectionCount,
             (select ifnull(avg(user_rating), 0) from recommendation_log where user_rating is not null) as avgRating
     </select>
 
     <insert id="insertMealSelection">
         insert into meal_selection
-        (number, status, user_id, flight_id, meal_order, seat_number, create_time, update_time)
+        (number, status, user_id, flight_id, meal_order, create_time, update_time)
         values
-        (#{number}, #{status}, #{userId}, #{flightId}, #{mealOrder}, #{seatNumber}, #{createTime}, #{updateTime})
+        (#{number}, #{status}, #{userId}, #{flightId}, #{mealOrder}, #{createTime}, #{updateTime})
     </insert>
 
     <update id="updateMealSelectionStatusAndUpdateTime">

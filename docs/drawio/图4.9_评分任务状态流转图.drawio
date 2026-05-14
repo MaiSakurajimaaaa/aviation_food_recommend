@@ -1,101 +1,90 @@
-<mxfile host="app.diagrams.net">
-  <diagram name="评分任务状态流转图">
-    <mxGraphModel dx="1000" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="480">
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/25.0.2 Chrome/128.0.6613.186 Electron/32.2.5 Safari/537.36" version="25.0.2">
+  <diagram name="评分任务状态流转" id="rating-state-machine">
+    <mxGraphModel dx="2060" dy="650" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-
-        <!-- PENDING -->
-        <mxCell id="pending" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;&lt;b&gt;PENDING&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;待评分&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=2;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="340" y="50" width="140" height="55" as="geometry" />
+        <mxCell id="X5WedO4ep6DYj0295ZjE-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="start" target="pending">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- SUBMITTED -->
-        <mxCell id="submitted" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;&lt;b&gt;SUBMITTED&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;已提交&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="100" y="200" width="140" height="55" as="geometry" />
+        <mxCell id="start" value="航班结束&lt;br&gt;触发批量生成(upsert)" style="whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="-10" y="210" width="130" height="60" as="geometry" />
         </mxCell>
-
-        <!-- DEFERRED -->
-        <mxCell id="deferred" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;&lt;b&gt;DEFERRED&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;已暂缓&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="580" y="200" width="140" height="55" as="geometry" />
+        <mxCell id="pending" value="&lt;span style=&quot;font-weight: normal;&quot;&gt;PENDING&lt;br&gt;待评分&lt;/span&gt;" style="whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;rounded=0;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="260" y="210" width="120" height="60" as="geometry" />
         </mxCell>
-
-        <!-- EXPIRED -->
-        <mxCell id="expired" value="&lt;font style=&quot;font-size: 13px;&quot;&gt;&lt;b&gt;EXPIRED&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;已过期&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="340" y="370" width="140" height="55" as="geometry" />
+        <mxCell id="submitted" value="SUBMITTED&lt;br&gt;已提交" style="whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="480" y="210" width="120" height="60" as="geometry" />
         </mxCell>
-
-        <!-- PENDING → SUBMITTED -->
-        <mxCell id="ps1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="pending" target="submitted">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="240" y="77" /><mxPoint x="240" y="170" /><mxPoint x="170" y="170" /></Array>
+        <mxCell id="deferred" value="DEFERRED&lt;br&gt;已暂缓" style="whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="260" y="60" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="expired" value="EXPIRED&lt;br&gt;已过期" style="whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="260" y="360" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-start-pending" style="endArrow=classic;html=1;strokeColor=#000000;rounded=0;" parent="1" source="start" target="pending" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-start-pending-label" value="生成任务(7天有效期)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fillColor=#ffffff;strokeColor=none;rounded=0;" parent="edge-start-pending" vertex="1" connectable="0">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-10" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="ps1_label" value="旅客提交评分&lt;br&gt;POST /rate" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;" vertex="1" connectable="0" parent="ps1">
-          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint x="-80" as="offset" /></mxGeometry>
+        <mxCell id="edge-pending-submitted" style="endArrow=classic;html=1;strokeColor=#000000;rounded=0;" parent="1" source="pending" target="submitted" edge="1">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- PENDING → DEFERRED -->
-        <mxCell id="ps2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="pending" target="deferred">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="580" y="77" /><mxPoint x="580" y="170" /><mxPoint x="650" y="170" /></Array>
+        <mxCell id="edge-pending-submitted-label" value="旅客提交评分" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fillColor=#ffffff;strokeColor=none;rounded=0;" parent="edge-pending-submitted" vertex="1" connectable="0">
+          <mxGeometry x="-0.1" y="1" relative="1" as="geometry">
+            <mxPoint y="-8" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="ps2_label" value="旅客暂缓评分&lt;br&gt;POST /rate/defer&lt;br&gt;24小时后重新提醒" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;" vertex="1" connectable="0" parent="ps2">
-          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint x="80" as="offset" /></mxGeometry>
-        </mxCell>
-
-        <!-- DEFERRED → SUBMITTED -->
-        <mxCell id="ps3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="deferred" target="submitted">
+        <mxCell id="edge-pending-deferred" style="endArrow=classic;html=1;strokeColor=#000000;rounded=0;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" parent="1" source="pending" target="deferred" edge="1">
           <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="430" y="227" /><mxPoint x="430" y="215" /></Array>
+            <Array as="points">
+              <mxPoint x="320" y="200" />
+              <mxPoint x="320" y="130" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="ps3_label" value="旅客提交评分" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;" vertex="1" connectable="0" parent="ps3">
-          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint y="-10" as="offset" /></mxGeometry>
-        </mxCell>
-
-        <!-- PENDING → EXPIRED -->
-        <mxCell id="ps4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="pending" target="expired">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="410" y="280" /><mxPoint x="370" y="280" /></Array>
+        <mxCell id="edge-pending-deferred-label" value="旅客暂缓" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fillColor=#ffffff;strokeColor=none;rounded=0;" parent="edge-pending-deferred" vertex="1" connectable="0">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint x="-10" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="ps4_label" value="7天未提交 / 管理员手动过期&lt;br&gt;POST /expire" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;" vertex="1" connectable="0" parent="ps4">
-          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint x="50" y="-5" as="offset" /></mxGeometry>
-        </mxCell>
-
-        <!-- DEFERRED → EXPIRED -->
-        <mxCell id="ps5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.7;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="deferred" target="expired">
+        <mxCell id="edge-deferred-pending" style="endArrow=classic;html=1;strokeColor=#000000;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="deferred" target="pending" edge="1">
           <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="650" y="280" /><mxPoint x="450" y="280" /></Array>
+            <Array as="points">
+              <mxPoint x="320" y="130" />
+              <mxPoint x="320" y="200" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="ps5_label" value="7天未提交 / 管理员手动过期" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;" vertex="1" connectable="0" parent="ps5">
-          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint x="60" as="offset" /></mxGeometry>
-        </mxCell>
-
-        <!-- EXPIRED → PENDING -->
-        <mxCell id="ps6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1;dashed=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="expired" target="pending">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="410" y="330" /><mxPoint x="410" y="130" /></Array>
+        <mxCell id="edge-deferred-pending-label" value="24小时后重新提醒" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fillColor=#ffffff;strokeColor=none;rounded=0;" parent="edge-deferred-pending" vertex="1" connectable="0">
+          <mxGeometry x="0.2" relative="1" as="geometry">
+            <mxPoint x="10" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="ps6_label" value="管理员重开&lt;br&gt;POST /reopen" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;" vertex="1" connectable="0" parent="ps6">
-          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint x="-60" as="offset" /></mxGeometry>
+        <mxCell id="edge-pending-expired" style="endArrow=classic;html=1;strokeColor=#000000;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="pending" target="expired" edge="1">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- 生成 -->
-        <mxCell id="gen" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1;endArrow=classic;" edge="1" parent="1">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="410" y="15" as="sourcePoint" />
-            <mxPoint x="410" y="50" as="targetPoint" />
+        <mxCell id="edge-pending-expired-label" value="7天未提交自动过期" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fillColor=#ffffff;strokeColor=none;rounded=0;" parent="edge-pending-expired" vertex="1" connectable="0">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint x="-10" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="gen_label" value="航班结束后自动生成&lt;br&gt;（过期时间 7 天）" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=9;" vertex="1" connectable="0" parent="gen">
-          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint x="60" as="offset" /></mxGeometry>
+        <mxCell id="edge-expired-pending" style="endArrow=classic;html=1;strokeColor=#000000;rounded=0;exitX=0;exitY=0.5;entryX=0;entryY=0.5;edgeStyle=elbowEdgeStyle;" parent="1" source="expired" target="pending" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="390" />
+              <mxPoint x="220" y="240" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-
+        <mxCell id="edge-expired-pending-label" value="管理员重开任务" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fillColor=#ffffff;strokeColor=none;rounded=0;" parent="edge-expired-pending" vertex="1" connectable="0">
+          <mxGeometry x="-0.5" y="1" relative="1" as="geometry">
+            <mxPoint y="-5" as="offset" />
+          </mxGeometry>
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>

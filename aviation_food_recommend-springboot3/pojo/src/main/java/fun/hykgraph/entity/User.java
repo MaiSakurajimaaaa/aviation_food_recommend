@@ -22,8 +22,13 @@ public class User implements Serializable {
     private String idNumber;
     private String pic;
     private Integer preferenceCompleted;
+    private String mealTypePreferences;   // JSON: meal type preferences
+    private String flavorPreferences;     // comma-separated: flavor preferences
+
+    private String dietaryNotes;          // dietary notes text
     private Integer currentFlightId;
     private Integer cabinType;
     private LocalDateTime createTime;
+    private LocalDateTime updateTime;     // last update time
 
 }

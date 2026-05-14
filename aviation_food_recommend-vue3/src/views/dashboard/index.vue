@@ -224,7 +224,7 @@ onBeforeUnmount(() => {
       <template #header>
         <div class="header-row">
           <span>最近公告</span>
-          <el-button type="primary" link @click="router.push('/preferences')">去公告管理</el-button>
+          <el-button type="primary" link @click="router.push('/announcement-center')">去公告管理</el-button>
         </div>
       </template>
       <el-table :data="pagedAnnouncements" border stripe>

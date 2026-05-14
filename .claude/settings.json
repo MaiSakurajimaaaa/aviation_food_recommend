@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -X utf8 -c ' *)",
+      "Bash(grep -o '\\\\[[0-9]\\\\{1,2\\\\}\\\\]' 初稿-v2.md)",
+      "Bash(grep -oP '\\(?<!\\\\]\\\\\\(|#\\)\\\\\\\\\\\\[\\([0-9]+\\)\\\\\\\\\\\\]\\(?!\\\\]\\)' 初稿-v2.md)",
+      "Bash(sort -t] -k1 -n)",
+      "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿-最新.md\")",
+      "Bash(sort -t'[' -k2 -n)",
+      "Bash(grep -o '\\\\[[0-9]\\\\{1,2\\\\}\\\\]' 初稿-最新.md)"
+    ]
+  }
+}

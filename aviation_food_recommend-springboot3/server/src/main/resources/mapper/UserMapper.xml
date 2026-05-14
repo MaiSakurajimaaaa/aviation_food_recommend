@@ -19,6 +19,11 @@
             <if test="preferenceCompleted != null">preference_completed = #{preferenceCompleted},</if>
             <if test="currentFlightId != null">current_flight_id = #{currentFlightId},</if>
             <if test="cabinType != null">cabin_type = #{cabinType},</if>
+            <if test="mealTypePreferences != null">meal_type_preferences = #{mealTypePreferences},</if>
+            <if test="flavorPreferences != null">flavor_preferences = #{flavorPreferences},</if>
+
+            <if test="dietaryNotes != null">dietary_notes = #{dietaryNotes},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
         </set>
         where id = #{id}
     </update>
@@ -71,16 +76,7 @@
                 when u.gender = 0 then '女'
                 else '未知'
             end as gender,
-            case
-                when exists(
-                    select 1
-                    from user_preference up
-                    join user uu on uu.id = up.user_id
-                    where (u.id_number is not null and uu.id_number = u.id_number)
-                       or (u.id_number is null and up.user_id = u.id)
-                ) then 1
-                else 0
-            end as preferenceCompleted,
+            case when u.preference_completed = 1 then 1 else 0 end as preferenceCompleted,
             case
                 when u.current_flight_id is not null then '已绑定'
                 else '未绑定'
@@ -134,16 +130,7 @@
                 when u.gender = 0 then '女'
                 else '未知'
             end as gender,
-            case
-                when exists(
-                    select 1
-                    from user_preference up
-                    join user uu on uu.id = up.user_id
-                    where (u.id_number is not null and uu.id_number = u.id_number)
-                       or (u.id_number is null and up.user_id = u.id)
-                ) then 1
-                else 0
-            end as preferenceCompleted,
+            case when u.preference_completed = 1 then 1 else 0 end as preferenceCompleted,
             case
                 when u.current_flight_id is not null then '已绑定'
                 else '未绑定'
@@ -209,16 +196,7 @@
                 when u.cabin_type = 2 then '商务舱'
                 else '经济舱'
             end as cabinTypeLabel,
-            case
-                when exists(
-                    select 1
-                    from user_preference up
-                    join user uu on uu.id = up.user_id
-                    where (u.id_number is not null and uu.id_number = u.id_number)
-                       or (u.id_number is null and up.user_id = u.id)
-                ) then 1
-                else 0
-            end as preferenceCompleted,
+            case when u.preference_completed = 1 then 1 else 0 end as preferenceCompleted,
             u.current_flight_id as currentFlightId
         from user u
         <where>
