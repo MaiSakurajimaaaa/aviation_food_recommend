@@ -16,18 +16,14 @@ public interface FlightRouteDishMapper {
                                          @Param("cabinType") Integer cabinType,
                                          @Param("excludeId") Integer excludeId);
 
-    void insertBinding(@Param("departure") String departure,
-                       @Param("destination") String destination,
+    void insertBinding(@Param("flightId") Integer flightId,
                        @Param("dishId") Integer dishId,
-                       @Param("dishSource") Integer dishSource,
                        @Param("cabinType") Integer cabinType,
                        @Param("sort") Integer sort);
 
     void updateBinding(@Param("id") Integer id,
-                       @Param("departure") String departure,
-                       @Param("destination") String destination,
+                       @Param("flightId") Integer flightId,
                        @Param("dishId") Integer dishId,
-                       @Param("dishSource") Integer dishSource,
                        @Param("cabinType") Integer cabinType,
                        @Param("sort") Integer sort);
 

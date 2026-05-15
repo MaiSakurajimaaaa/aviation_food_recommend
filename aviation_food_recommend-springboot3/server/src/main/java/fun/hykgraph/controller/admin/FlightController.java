@@ -400,10 +400,8 @@ public class FlightController {
             return Result.error("该航班在当前舱型下已绑定该餐食");
         }
         flightRouteDishMapper.insertBinding(
-                flightInfo.getDeparture(),
-                flightInfo.getDestination(),
+                flightInfo.getId(),
                 dto.getDishId(),
-                dto.getDishSource() == null ? 1 : dto.getDishSource(),
                 cabinType,
                 dto.getSort() == null ? 1 : dto.getSort()
         );
@@ -439,10 +437,8 @@ public class FlightController {
         }
         flightRouteDishMapper.updateBinding(
                 dto.getId(),
-                flightInfo.getDeparture(),
-                flightInfo.getDestination(),
+                flightInfo.getId(),
                 dto.getDishId(),
-                dto.getDishSource() == null ? 1 : dto.getDishSource(),
                 cabinType,
                 dto.getSort() == null ? 1 : dto.getSort()
         );

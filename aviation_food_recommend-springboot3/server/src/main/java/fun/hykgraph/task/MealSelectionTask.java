@@ -148,7 +148,6 @@ public class MealSelectionTask {
         recommendLog.put("userId", userId);
         recommendLog.put("flightId", flight.getId());
         recommendLog.put("recommendedDishes", "[" + selected.getDishId() + "]");
-        recommendLog.put("algorithmType", "fused-pmfup-prmidm-ammbc-v1");
         recommendLog.put("userFeedback", "AUTO_SELECTED_OVERDUE:dishId=" + selected.getDishId());
         recommendationMapper.insertLog(recommendLog);
 

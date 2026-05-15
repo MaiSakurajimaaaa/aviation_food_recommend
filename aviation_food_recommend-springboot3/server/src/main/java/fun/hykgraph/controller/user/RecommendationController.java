@@ -33,7 +33,6 @@ public class RecommendationController {
     private static final Set<Integer> ALLOWED_MEAL_TYPES = new HashSet<>(Arrays.asList(1, 2, 3, 4));
     private static final int MANUAL_SELECTION_CONFIRMED_STATUS = 3;
     private static final Set<String> ALLOWED_FLAVORS = new HashSet<>(Arrays.asList("清淡", "咸香", "微辣", "甜口", "低脂", "高蛋白"));
-    private static final String FUSED_ALGORITHM_TYPE = "fused-pmfup-prmidm-ammbc-v3";
     private static final double EXPOSURE_SCORE_WEIGHT = 0.15;
     private static final int RECENT_WINDOW_DAYS = 30;
     private static final int HISTORY_WINDOW_DAYS = 180;
@@ -253,7 +252,6 @@ public class RecommendationController {
         recommendLog.put("userId", userId);
         recommendLog.put("flightId", flightId);
         recommendLog.put("recommendedDishes", list.stream().map(RecommendationDishVO::getDishId).toList().toString());
-        recommendLog.put("algorithmType", resolveAlgorithmType(userId));
         recommendLog.put("userFeedback", "");
         try {
             recommendationMapper.insertLog(recommendLog);
@@ -1301,10 +1299,6 @@ public class RecommendationController {
         return Result.success(announcementMapper.list(flightId));
     }
 
-    private String resolveAlgorithmType(Integer userId) {
-        return FUSED_ALGORITHM_TYPE;
-    }
-
     private double calculatePmfupScore(RecommendationDishVO item,
                                        Set<Integer> prefMealTypes,
                                        Set<String> prefFlavors,
@@ -1873,7 +1867,6 @@ public class RecommendationController {
         recommendLog.put("userId", userId);
         recommendLog.put("flightId", flightId);
         recommendLog.put("recommendedDishes", "[" + dishId + "]");
-        recommendLog.put("algorithmType", resolveAlgorithmType(userId));
         recommendLog.put("userFeedback", event + ":dishId=" + dishId + ":mealOrder=" + mealOrder);
         recommendationMapper.insertLog(recommendLog);
     }
@@ -1883,7 +1876,6 @@ public class RecommendationController {
         recommendLog.put("userId", userId);
         recommendLog.put("flightId", flightId);
         recommendLog.put("recommendedDishes", "[" + dishId + "]");
-        recommendLog.put("algorithmType", resolveAlgorithmType(userId));
         recommendLog.put("userFeedback", "CLICK:dishId=" + dishId + ":mealOrder=" + mealOrder);
         recommendationMapper.insertLog(recommendLog);
     }
@@ -1932,7 +1924,6 @@ public class RecommendationController {
         if (seeds != null && !seeds.isEmpty()) {
             for (Map<String, Object> seed : seeds) {
                 Integer flightId = parseInt(seed.get("flightId"));
-                Long sourceLogId = parseLong(seed.get("sourceLogId"));
                 if (flightId == null) {
                     continue;
                 }
@@ -1940,14 +1931,12 @@ public class RecommendationController {
                 Map<String, Object> params = new HashMap<>();
                 params.put("userId", userId);
                 params.put("flightId", flightId);
-                params.put("sourceLogId", sourceLogId);
                 params.put("ratingStatus", RATING_STATUS_PENDING);
                 params.put("firstVisibleAt", now);
                 params.put("lastVisibleAt", now);
                 params.put("nextRemindAt", now);
                 params.put("deferCount", 0);
                 params.put("expireAt", now.plusDays(RATING_EXPIRE_DAYS));
-                params.put("channel", "miniapp");
                 params.put("createTime", now);
                 params.put("updateTime", now);
                 recommendationMapper.upsertFlightRatingTask(params);

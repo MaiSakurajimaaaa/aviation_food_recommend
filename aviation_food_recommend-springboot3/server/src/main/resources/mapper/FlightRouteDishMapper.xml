@@ -4,64 +4,54 @@
 <mapper namespace="fun.hykgraph.mapper.FlightRouteDishMapper">
 
     <select id="listByFlightNumber" resultType="fun.hykgraph.vo.FlightMealBindingVO">
-        select frd.id,
+        select fd.id,
                fi.id as flight_id,
                fi.flight_number,
                fi.departure,
                fi.destination,
-               frd.dish_id,
+               fd.dish_id,
                d.name as dish_name,
                d.status as dish_status,
-               frd.dish_source,
-                             (case
-                                        when ifnull(frd.cabin_type, 3) = 0 then 3
-                                        else ifnull(frd.cabin_type, 3)
-                                end) as cabin_type,
-               frd.sort
-        from flight_route_dish frd
-                 inner join flight_info fi on fi.departure = frd.departure and fi.destination = frd.destination
-                 left join dish d on d.id = frd.dish_id
+               1 as dish_source,
+               fd.cabin_type,
+               fd.sort
+        from flight_dish fd
+                 inner join flight_info fi on fi.id = fd.flight_id
+                 left join dish d on d.id = fd.dish_id
         where fi.flight_number = #{flightNumber}
-        order by frd.sort asc, frd.id desc
+        order by fd.sort asc, fd.id desc
     </select>
 
     <select id="countByFlightNumberAndDishId" resultType="java.lang.Integer">
         select count(1)
-        from flight_route_dish frd
-                 inner join flight_info fi on fi.departure = frd.departure and fi.destination = frd.destination
+        from flight_dish fd
+                 inner join flight_info fi on fi.id = fd.flight_id
         where fi.flight_number = #{flightNumber}
-          and frd.dish_id = #{dishId}
-          and (case
-                   when ifnull(frd.cabin_type, 3) = 0 then 3
-                   else ifnull(frd.cabin_type, 3)
-               end) = #{cabinType}
+          and fd.dish_id = #{dishId}
+          and fd.cabin_type = #{cabinType}
           <if test="excludeId != null">
-              and frd.id != #{excludeId}
+              and fd.id != #{excludeId}
           </if>
     </select>
 
     <insert id="insertBinding">
-        insert into flight_route_dish
-        (departure, destination, dish_id, dish_source, cabin_type, sort)
+        insert into flight_dish
+        (flight_id, dish_id, cabin_type, sort)
         values
-        (#{departure}, #{destination}, #{dishId}, #{dishSource}, #{cabinType}, #{sort})
+        (#{flightId}, #{dishId}, #{cabinType}, #{sort})
     </insert>
 
     <update id="updateBinding">
-        update flight_route_dish
-        set departure = #{departure},
-            destination = #{destination},
+        update flight_dish
+        set flight_id = #{flightId},
             dish_id = #{dishId},
-            dish_source = #{dishSource},
             cabin_type = #{cabinType},
             sort = #{sort}
         where id = #{id}
     </update>
 
     <delete id="deleteById">
-        delete
-        from flight_route_dish
-        where id = #{id}
+        delete from flight_dish where id = #{id}
     </delete>
 
 </mapper>

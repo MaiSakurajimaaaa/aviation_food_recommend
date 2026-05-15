@@ -3,26 +3,24 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="fun.hykgraph.mapper.DishFlavorMapper">
 
+    <!-- dish_flavor table deprecated; flavors now in dish.flavor_tags JSON column -->
+    <!-- All methods are no-ops for backward compatibility -->
+
     <insert id="insertBatch">
-        insert into dish_flavor (name, list, dish_id) VALUES
-        <foreach collection="list" item="df" separator=",">
-            (#{df.name}, #{df.list}, #{df.dishId})
-        </foreach>
+        select 1 from dual where 1 = 0
     </insert>
 
     <select id="getByDishId" resultType="fun.hykgraph.entity.DishFlavor">
-        select * from dish_flavor where dish_id = #{dishId}
+        select null as id, null as name, null as list, null as dishId
+        from dual where 1 = 0
     </select>
 
     <delete id="deleteByDishId">
-        delete from dish_flavor where dish_id = #{dishId}
+        select 1 from dual where 1 = 0
     </delete>
 
     <delete id="deleteBatch">
-        delete from dish_flavor where dish_id in
-        <foreach collection="list" item="id" open="(" separator="," close=")">
-            #{id}
-        </foreach>
+        select 1 from dual where 1 = 0
     </delete>
 
 </mapper>
