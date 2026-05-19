@@ -479,6 +479,7 @@
         select fr.id as ratingTaskId,
                (select rl3.id from recommendation_log rl3
                 where rl3.user_id = fr.user_id and rl3.flight_id = fr.flight_id
+                  and rl3.user_feedback like 'MANUAL_SELECTED%'
                 order by rl3.id desc limit 1) as logId,
                fr.flight_id as flightId,
                fr.rating_status as ratingStatus,
