@@ -57,7 +57,8 @@
       "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/初稿/初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿_审稿.md\")",
       "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/22045309-胡屿科-初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/审稿_extracted.md\")",
       "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/22045309-胡屿科-初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿_full.md\")",
-      "Bash(mvn test-compile *)"
+      "Bash(mvn test-compile *)",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e ' *)"
     ]
   }
 }

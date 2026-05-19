@@ -407,8 +407,17 @@ const loadHistory = async () => {
         ratingScore: matchedRating ? matchedRating.ratingScore : (row.userRating || row.user_rating),
       })
     }
-    mergedSelections.value = selections
-    // 异步解析菜品名
+    // 去重：同一航班+餐次只保留最新一条（改选记录只计最终选择）
+    const deduped: Record<string, any>[] = []
+    const seen = new Set<string>()
+    for (let i = selections.length - 1; i >= 0; i--) {
+      const s = selections[i]
+      const key = (s.flight_id || s.flightId) + '_' + (s.meal_order || s.mealOrder || 1)
+      if (seen.has(key)) continue
+      seen.add(key)
+      deduped.unshift(s)
+    }
+    mergedSelections.value = deduped
     void resolveDishNames()
   } catch { recHistory.value = [] }
 }

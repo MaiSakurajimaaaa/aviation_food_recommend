@@ -90,11 +90,14 @@
                                      inner join (
                                          select user_id, flight_id, max(id) as max_id
                                          from recommendation_log
+                                         where user_feedback like 'MANUAL_SELECTED%'
                                          group by user_id, flight_id
                                      ) latest on latest.max_id = rl2.id
                                  ) rl on rl.user_id = fr.user_id and rl.flight_id = fr.flight_id
                 where fr.user_id = #{userId}
                     and fr.rating_status in ('PENDING', 'DEFERRED')
+                    and fi.arrival_time is not null
+                    and fi.arrival_time &lt;= #{now}
                     and (fr.next_remind_at is null or fr.next_remind_at &lt;= #{now})
                     and (fr.expire_at is null or fr.expire_at &gt; #{now})
                 order by fi.arrival_time desc, fr.id desc
