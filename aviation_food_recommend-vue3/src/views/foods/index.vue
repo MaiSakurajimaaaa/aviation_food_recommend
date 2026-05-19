@@ -147,30 +147,15 @@ const handleDishCategoryChange = (categoryId?: number) => {
   }
 }
 
-const convertFileToBase64 = (file: File) => {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.readAsDataURL(file)
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('图片读取失败'))
-  })
-}
+const pendingFile = ref<File | null>(null)
 
 const handleImageChange = async (file: UploadFile) => {
   const rawFile = file.raw as UploadRawFile | undefined
-  if (!rawFile) {
-    return
-  }
-  if (!rawFile.type.startsWith('image/')) {
-    ElMessage.warning('请上传图片文件')
-    return
-  }
-  try {
-    dishForm.pic = await convertFileToBase64(rawFile)
-    ElMessage.success('图片已加载')
-  } catch {
-    ElMessage.error('图片处理失败，请重试')
-  }
+  if (!rawFile) return
+  if (!rawFile.type.startsWith('image/')) { ElMessage.warning('请上传图片文件'); return }
+  pendingFile.value = rawFile
+  dishForm.pic = '[待上传] ' + rawFile.name
+  ElMessage.success('已选择：' + rawFile.name)
 }
 
 const saveDish = async () => {
@@ -182,10 +167,6 @@ const saveDish = async () => {
     ElMessage.warning('请选择分类')
     return
   }
-  if (!dishForm.mealType) {
-    ElMessage.warning('请选择餐型')
-    return
-  }
   if (dishForm.stock < 0) {
     ElMessage.warning('库存不能小于0')
     return
@@ -195,19 +176,25 @@ const saveDish = async () => {
     return
   }
 
-  const suggestedMealType = inferMealTypeByCategoryName(getCategoryName(dishForm.categoryId))
-  if (suggestedMealType && suggestedMealType !== dishForm.mealType) {
-    ElMessage.warning(`分类与餐型存在偏差，建议餐型：${getMealTypeLabel(suggestedMealType)}`)
-  }
-
   const normalizedFlavorTags = normalizeFlavorTags(dishForm.flavorTags)
 
   await withSubmitting(async () => {
+    // 上传图片文件
+    let picUrl = dishForm.pic
+    if (pendingFile.value) {
+      const fd = new FormData()
+      fd.append('file', pendingFile.value)
+      try {
+        const res = await fetch('/api/admin/dish/upload', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (data.code === 0) { picUrl = data.data.url; pendingFile.value = null }
+      } catch { ElMessage.warning('图片上传失败') }
+    }
     const payload: DishUpsertPayload = {
       id: dishForm.id,
       name: dishForm.name.trim(),
       detail: dishForm.detail,
-      pic: dishForm.pic,
+      pic: picUrl,
       categoryId: dishForm.categoryId!,
       status: dishForm.status,
       mealType: dishForm.mealType!,

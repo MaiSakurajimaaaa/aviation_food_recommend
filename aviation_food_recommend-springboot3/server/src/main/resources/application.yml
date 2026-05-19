@@ -13,7 +13,7 @@ spring:
     redis:
       host: ${aviation-food-recommend.redis.host}
       port: ${aviation-food-recommend.redis.port}
-      password: ${aviation-food-recommend.redis.password}
+     # password: ${aviation-food-recommend.redis.password}
       database: ${aviation-food-recommend.redis.database}
 
 # ??mybatis

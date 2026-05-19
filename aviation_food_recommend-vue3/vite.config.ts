@@ -26,6 +26,10 @@ export default defineConfig({
         changeOrigin: true,
         // /api去掉，变成空串，因为它只是一个标识而已，并不是路径
         rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/dish-images': {
+        target: 'http://localhost:8081',
+        changeOrigin: true
       }
     }
   }

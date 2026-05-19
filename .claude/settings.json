@@ -19,7 +19,8 @@
       "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SELECT id, name, pic FROM dish WHERE pic IS NOT NULL AND pic != '' AND pic NOT LIKE '/static/dish/%' LIMIT 5\")",
       "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"UPDATE dish SET pic = NULL WHERE pic LIKE '[%'\")",
       "Bash(git checkout *)",
-      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SHOW COLUMNS FROM recommendation_log LIKE 'algorithm%'\")"
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SHOW COLUMNS FROM recommendation_log LIKE 'algorithm%'\")",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"UPDATE dish SET pic = NULL; SELECT COUNT\\(*\\) FROM dish WHERE pic IS NOT NULL;\")"
     ]
   }
 }

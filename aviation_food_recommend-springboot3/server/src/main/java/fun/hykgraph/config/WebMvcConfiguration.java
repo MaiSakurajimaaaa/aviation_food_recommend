@@ -9,8 +9,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurationSupport;
 
+import java.io.File;
 import java.util.List;
 
 @Configuration
@@ -34,6 +36,14 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
         registry.addInterceptor(jwtTokenUserInterceptor)
                 .addPathPatterns("/user/**")
             .excludePathPatterns("/user/user/login", "/user/recommendation/evaluate", "/user/recommendation/evaluate/subsample", "/user/recommendation/evaluate/bootstrap", "/user/recommendation/evaluate/debug", "/user/recommendation/dish-similarity");
+    }
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        File dir = new File("./dish-images/");
+        if (!dir.exists()) dir.mkdirs();
+        registry.addResourceHandler("/dish-images/**")
+                .addResourceLocations("file:" + dir.getAbsolutePath() + "/");
     }
 
     /**
