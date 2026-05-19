@@ -345,7 +345,7 @@ onMounted(async () => {
 
     <el-alert type="info" show-icon :closable="false" style="margin-bottom: 14px">
       <template #title>
-        航空餐食要求：机上餐食为免费，无需价格；请维护餐型（1儿童/2标准/3清真/4素食）与选择类型，推荐引擎会基于该字段匹配。
+        航空餐食要求：机上餐食为免费，无需价格；请维护菜品分类与选择类型，推荐引擎会基于该字段匹配。
       </template>
     </el-alert>
 
@@ -385,9 +385,6 @@ onMounted(async () => {
       </el-table-column>
       <el-table-column label="分类" min-width="120">
         <template #default="scope">{{ getCategoryName(scope.row.categoryId) }}</template>
-      </el-table-column>
-      <el-table-column label="餐型" min-width="120">
-        <template #default="scope">{{ getMealTypeDisplay(scope.row) }}</template>
       </el-table-column>
       <el-table-column label="选择类型" min-width="180">
         <template #default="scope">{{ formatFlavorTags(scope.row.flavorTags) }}</template>
@@ -453,11 +450,6 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="dishForm.detail" type="textarea" :rows="2" maxlength="200" show-word-limit />
-        </el-form-item>
-        <el-form-item label="餐型">
-          <el-select v-model="dishForm.mealType" placeholder="请选择餐型" style="width: 100%">
-            <el-option v-for="option in MEAL_TYPE_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
-          </el-select>
         </el-form-item>
         <el-form-item label="选择类型">
           <el-select

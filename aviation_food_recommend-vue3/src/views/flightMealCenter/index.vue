@@ -286,13 +286,6 @@ onMounted(async () => {
         <el-table-column prop="departure" label="出发地" min-width="120" />
         <el-table-column prop="destination" label="目的地" min-width="120" />
         <el-table-column prop="durationMinutes" label="时长(分钟)" min-width="120" />
-        <el-table-column label="状态" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
-              {{ scope.row.status === 1 ? '启用' : '停用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="餐食管理" width="120">
           <template #default="scope">
             <el-button type="primary" link @click="selectFlight(scope.row)">查看餐食</el-button>
@@ -338,16 +331,10 @@ onMounted(async () => {
         <el-table-column prop="id" label="绑定ID" width="90" />
         <el-table-column prop="dishId" label="餐食ID" width="90" />
         <el-table-column prop="dishName" label="餐食名称" min-width="180" />
+        <el-table-column prop="categoryName" label="分类" width="100" />
         <el-table-column label="舱型" width="110">
           <template #default="scope">
             {{ formatCabinTypeLabel(scope.row.cabinType) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="餐食状态" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.dishStatus === 1 ? 'success' : 'info'">
-              {{ scope.row.dishStatus === 1 ? '启用' : '停用' }}
-            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="sort" label="排序" width="80" />

@@ -477,13 +477,6 @@ onMounted(async () => {
         <el-table-column prop="destination" label="目的地" min-width="120" />
         <el-table-column prop="durationMinutes" label="时长(分钟)" min-width="120" />
         <el-table-column prop="mealCount" label="供餐次数" min-width="100" />
-        <el-table-column label="状态" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
-              {{ scope.row.status === 1 ? '启用' : '停用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="客户信息" width="120">
           <template #default="scope">
             <el-button type="primary" link @click="selectFlight(scope.row)">查看客户</el-button>

@@ -12,12 +12,14 @@
                fd.dish_id,
                d.name as dish_name,
                d.status as dish_status,
+               c.name as category_name,
                1 as dish_source,
                fd.cabin_type,
                fd.sort
         from flight_dish fd
                  inner join flight_info fi on fi.id = fd.flight_id
                  left join dish d on d.id = fd.dish_id
+                 left join category c on c.id = d.category_id
         where fi.flight_number = #{flightNumber}
         order by fd.sort asc, fd.id desc
     </select>

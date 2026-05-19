@@ -17,4 +17,5 @@ public class FlightMealBindingVO implements Serializable {
     private Integer dishSource;
     private Integer sort;
     private Integer cabinType;
+    private String categoryName;
 }

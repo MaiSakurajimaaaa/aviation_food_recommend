@@ -318,13 +318,6 @@ onMounted(loadData)
         <el-table-column prop="arrivalTime" label="到达时间" min-width="170" />
         <el-table-column prop="selectionDeadline" label="预选截止时间" min-width="180" />
         <el-table-column prop="mealCount" label="供餐次数" />
-        <el-table-column label="状态" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
-              {{ scope.row.status === 1 ? '启用' : '停用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default="scope">
             <el-button type="primary" link @click="openEditDialog(scope.row)">编辑</el-button>
