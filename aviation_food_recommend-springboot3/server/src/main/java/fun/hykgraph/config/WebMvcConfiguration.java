@@ -40,7 +40,7 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        File dir = new File("./dish-images/");
+        File dir = new File(System.getProperty("user.dir"), "dish-images");
         if (!dir.exists()) dir.mkdirs();
         registry.addResourceHandler("/dish-images/**")
                 .addResourceLocations("file:" + dir.getAbsolutePath() + "/");

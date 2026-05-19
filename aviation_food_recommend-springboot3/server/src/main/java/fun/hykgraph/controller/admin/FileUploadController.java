@@ -18,14 +18,15 @@ import java.util.Map;
 @Slf4j
 public class FileUploadController {
 
-    @PostMapping({"/admin/dish/upload", "/api/admin/dish/upload"})
-    public Result<Map<String, String>> upload(@RequestParam("file") MultipartFile file) {
+    @PostMapping({"/admin/dish/upload", "/api/admin/dish/upload", "/admin/admin/dish/upload"})
+    public Result<Map<String, String>> upload(@RequestParam(value = "file", required = false) MultipartFile file) {
+        log.info("收到上传请求: file={}", file != null ? file.getOriginalFilename() : "null");
         if (file == null || file.isEmpty()) return Result.error("文件为空");
         String name = file.getOriginalFilename();
         if (name == null) return Result.error("文件名为空");
         if (!name.toLowerCase().matches(".*\\.(png|jpg|jpeg)$")) return Result.error("仅支持PNG/JPG");
         try {
-            Path dir = Paths.get("./dish-images/");
+            Path dir = Paths.get(System.getProperty("user.dir"), "dish-images");
             if (!Files.exists(dir)) Files.createDirectories(dir);
             String filename = System.currentTimeMillis() + "_" + name;
             file.transferTo(dir.resolve(filename).toFile());
@@ -36,7 +37,7 @@ public class FileUploadController {
             return Result.success(m);
         } catch (IOException e) {
             log.error("上传失败", e);
-            return Result.error("上传失败");
+            return Result.error("上传失败: " + e.getMessage());
         }
     }
 }

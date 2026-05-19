@@ -7,6 +7,7 @@ import type { CategoryItem, DishItem, DishUpsertPayload } from '@/types/aviation
 import type { ElTable } from 'element-plus'
 import type { UploadFile, UploadRawFile } from 'element-plus'
 import { useSubmitting } from '@/composables/useSubmitting'
+import { useUserInfoStore } from '@/store'
 import { MEAL_TYPE_OPTIONS, buildMealTypeDisplay, getMealTypeLabel, inferMealTypeByCategoryName } from '@/utils/meal'
 
 const loading = ref(false)
@@ -185,7 +186,8 @@ const saveDish = async () => {
       const fd = new FormData()
       fd.append('file', pendingFile.value)
       try {
-        const res = await fetch('/api/admin/dish/upload', { method: 'POST', body: fd })
+        const token = useUserInfoStore().userInfo?.token || ''
+        const res = await fetch('/api/admin/dish/upload', { method: 'POST', headers: { Authorization: token }, body: fd })
         const data = await res.json()
         if (data.code === 0) { picUrl = data.data.url; pendingFile.value = null }
       } catch { ElMessage.warning('图片上传失败') }
