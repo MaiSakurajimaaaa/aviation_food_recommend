@@ -29,12 +29,11 @@
     <!-- 待评分列表 -->
     <view class="section-card" id="pendingSection" v-if="!selected">
       <view class="section-head">
-        <view class="section-icon">📋</view>
         <view>
-          <text class="section-title">待评分列表</text>
-          <text class="section-desc">选择航班进行航后服务评价</text>
+          <text class="section-title">待评分</text>
+          <text class="section-desc">航班结束后对餐食服务进行评价</text>
         </view>
-        <view class="count-chip">{{ pendingList.length }} 条</view>
+        <view class="count-chip pending-chip">{{ pendingList.length }}</view>
       </view>
 
       <view class="pending-list" v-if="pendingList.length">
@@ -45,22 +44,17 @@
           @click="enterRating(item)"
         >
           <view class="pending-left">
-            <view class="pending-flight">{{ item.flightNumber || '当前航班' }}</view>
-            <view class="pending-route">
-              <text>{{ item.departure || '-' }}</text>
-              <text class="route-arrow">→</text>
-              <text>{{ item.destination || '-' }}</text>
-            </view>
+            <view class="pending-flight">{{ item.flightNumber || '-' }}</view>
+            <view class="pending-route">{{ item.departure || '-' }} → {{ item.destination || '-' }}</view>
           </view>
           <view class="pending-right">
             <text class="pending-time" v-if="item.arrivalTime">{{ formatDate(item.arrivalTime) }}</text>
-            <view class="rating-trigger">去评分 ›</view>
+            <view class="rating-trigger">去评分</view>
           </view>
         </view>
       </view>
 
       <view class="empty-state" v-else>
-        <view class="empty-icon">✨</view>
         <view class="empty-title">暂无待评分航班</view>
         <view class="empty-desc">完成飞行后，待评分项会出现</view>
       </view>
@@ -69,10 +63,9 @@
     <!-- 评分表单 -->
     <view class="section-card" v-if="selected">
       <view class="section-head">
-        <view class="section-icon">⭐</view>
         <view>
           <text class="section-title">航后反馈</text>
-          <text class="section-desc">对本次航班服务进行评价</text>
+          <text class="section-desc">对本次航班餐食服务进行评价</text>
         </view>
       </view>
 
@@ -111,10 +104,9 @@
     <!-- 评分历史 -->
     <view class="section-card" v-if="ratingHistory.length">
       <view class="section-head">
-        <view class="section-icon">📝</view>
         <view>
           <text class="section-title">评分历史</text>
-          <text class="section-desc">最近提交的服务评价</text>
+          <text class="section-desc">最近提交的餐食服务评价</text>
         </view>
       </view>
       <view class="history-list">
@@ -144,8 +136,7 @@
             <view class="h-detail-loading" v-if="loadingRatingDetail === (h.logId || h.flightId)">加载中…</view>
             <template v-else-if="ratingDetailMap[h.logId || h.flightId]">
               <view class="dish-hero dish-hero--sm">
-                <view class="dish-hero-icon">🍱</view>
-                <view class="dish-hero-info">
+                                <view class="dish-hero-info">
                   <text class="dish-hero-label">本次所选餐食</text>
                   <text class="dish-hero-name">{{ getDishName(ratingDetailMap[h.logId || h.flightId].selectedDishId) }}</text>
                 </view>
@@ -175,7 +166,6 @@
     <!-- 我的已选餐食：点击航班号可查看所选餐食 -->
     <view class="section-card meal-section" v-if="mergedSelections.length">
       <view class="section-head">
-        <view class="section-icon">🍽️</view>
         <view>
           <text class="section-title">我的已选餐食</text>
           <text class="section-desc">点击航班号查看该次预选的餐食详情</text>
@@ -216,8 +206,7 @@
 
             <!-- 已选餐食名称 -->
             <view class="dish-hero">
-              <view class="dish-hero-icon">🍱</view>
-              <view class="dish-hero-info">
+                            <view class="dish-hero-info">
                 <text class="dish-hero-label">本次所选餐食</text>
                 <text class="dish-hero-name">{{ getDishName(h.selectedDishId) }}</text>
               </view>
@@ -601,6 +590,7 @@ onShow(() => {
   font-size: 22rpx; color: #3e688f; background: #eaf3fd;
   border: 1px solid #d4e5f8; font-weight: 600;
 }
+.pending-chip { color: #d97706; background: #fef3c7; border-color: #fde68a; }
 
 /* ===== 待评分列表 ===== */
 .pending-list { display: flex; flex-direction: column; gap: 12rpx; }

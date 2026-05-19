@@ -23,4 +23,5 @@ public class UserMealSelectionVO implements Serializable {
     private String dishName;
     private String dishFlavor;
     private Integer dishCount;
+    private Integer mealOrder;
 }

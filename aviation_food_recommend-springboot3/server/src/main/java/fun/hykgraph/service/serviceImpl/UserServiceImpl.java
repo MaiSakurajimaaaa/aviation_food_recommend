@@ -78,6 +78,37 @@ public class UserServiceImpl implements UserService {
         User user = new User();
         BeanUtils.copyProperties(userDTO, user);
         user.setCabinType(normalizeCabinType(user.getCabinType()));
+
+        // 若设置了身份证且当前用户姓名/手机为空，则从管理员已创建的旅客记录中同步
+        String idNumber = userDTO.getIdNumber();
+        if (idNumber != null && !idNumber.trim().isEmpty()) {
+            User current = userMapper.getById(userDTO.getId());
+            boolean needSync = (current == null
+                    || current.getName() == null || current.getName().trim().isEmpty()
+                    || current.getPhone() == null || current.getPhone().trim().isEmpty()
+                    || current.getGender() == null);
+            if (needSync) {
+                User passenger = userMapper.getLatestByIdNumber(idNumber.trim());
+                if (passenger != null && !passenger.getId().equals(userDTO.getId())) {
+                    if (current != null) {
+                        if (current.getName() == null || current.getName().trim().isEmpty()) {
+                            user.setName(passenger.getName());
+                        }
+                        if (current.getPhone() == null || current.getPhone().trim().isEmpty()) {
+                            user.setPhone(passenger.getPhone());
+                        }
+                        if (current.getGender() == null) {
+                            user.setGender(passenger.getGender());
+                        }
+                    } else {
+                        user.setName(passenger.getName());
+                        user.setPhone(passenger.getPhone());
+                        user.setGender(passenger.getGender());
+                    }
+                }
+            }
+        }
+
         userMapper.update(user);
     }
 

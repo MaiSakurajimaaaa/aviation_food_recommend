@@ -60,12 +60,11 @@ const verifyAndRoute = async () => {
     return
   }
 
-  if (!existedIdNumber) {
-    await updateUserAPI({
-      id: currentUserId,
-      idNumber: idNumber.value,
-    })
-  }
+  // 始终调用 updateUserAPI —— 后端会自动从管理员录入的旅客记录中同步姓名、手机、性别
+  await updateUserAPI({
+    id: currentUserId,
+    idNumber: idNumber.value,
+  })
 
   const flightRes = await getCurrentFlightAPI()
   if (flightRes.data) {

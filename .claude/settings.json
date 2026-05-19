@@ -7,7 +7,19 @@
       "Bash(sort -t] -k1 -n)",
       "Bash(pandoc \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿.docx\" -t markdown --wrap=none -o \"d:/Desktop/毕设/aviation_food_recommend/docs/论文/初稿-最新.md\")",
       "Bash(sort -t'[' -k2 -n)",
-      "Bash(grep -o '\\\\[[0-9]\\\\{1,2\\\\}\\\\]' 初稿-最新.md)"
+      "Bash(grep -o '\\\\[[0-9]\\\\{1,2\\\\}\\\\]' 初稿-最新.md)",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e ' *)",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SELECT id, openid, name, id_number, cabin_type, current_flight_id, preference_completed, meal_type_preferences, flavor_preferences FROM user WHERE id_number = '510411200309180910' OR id = 125\")",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SELECT id, flight_number, departure, destination, departure_time, arrival_time, selection_deadline, meal_count FROM flight_info WHERE id = \\(SELECT current_flight_id FROM user WHERE id = 51\\)\")",
+      "Bash(sed -n '203,208p' \"d:/Desktop/毕设/aviation_food_recommend/aviation_food_recommend-springboot3/server/src/main/java/fun/hykgraph/controller/user/RecommendationController.java\")",
+      "Bash(sed -n '626,630p' \"d:/Desktop/毕设/aviation_food_recommend/aviation_food_recommend-springboot3/server/src/main/java/fun/hykgraph/controller/user/RecommendationController.java\")",
+      "Bash(sed -n '866,870p' \"d:/Desktop/毕设/aviation_food_recommend/aviation_food_recommend-springboot3/server/src/main/java/fun/hykgraph/controller/user/RecommendationController.java\")",
+      "Bash(sed -n '1860,1864p' \"d:/Desktop/毕设/aviation_food_recommend/aviation_food_recommend-springboot3/server/src/main/java/fun/hykgraph/controller/user/RecommendationController.java\")",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SELECT id, name, CHAR_LENGTH\\(pic\\) as pic_len FROM dish WHERE pic IS NOT NULL AND pic != '' ORDER BY pic_len DESC LIMIT 5\")",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SELECT id, name, pic FROM dish WHERE pic IS NOT NULL AND pic != '' AND pic NOT LIKE '/static/dish/%' LIMIT 5\")",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"UPDATE dish SET pic = NULL WHERE pic LIKE '[%'\")",
+      "Bash(git checkout *)",
+      "Bash(mysql -uroot -p123456 --default-character-set=utf8mb4 aviation_food_recommend -e \"SHOW COLUMNS FROM recommendation_log LIKE 'algorithm%'\")"
     ]
   }
 }

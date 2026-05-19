@@ -97,9 +97,11 @@ const confirmSelect = async () => {
     const result = await selectRecommendationMealAPI(meal.value.dishId, meal.value.mealOrder)
     const message = result.data?.modified ? '改选成功（已更新）' : '预选成功'
     uni.showToast({ title: message, icon: 'none' })
+    // 设置快速刷新标记，避免推荐页重新加载航班上下文
+    uni.setStorageSync('quickReload', '1')
 
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/my/my' })
+      uni.switchTab({ url: '/pages/recommendation/recommendation' })
     }, 300)
   } catch (error) {
     const message = typeof error === 'object' && error && 'msg' in error ? String((error as { msg?: string }).msg || '提交失败') : '提交失败'

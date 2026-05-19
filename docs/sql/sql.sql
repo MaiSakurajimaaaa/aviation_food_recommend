@@ -6,7 +6,7 @@ create table employee
     name        varchar(32)       null,
     password    varchar(64)       null,
     phone       varchar(11)       null,
-    status      tinyint default 1 null,
+    status      tinyint default 1 not null,
     create_time datetime          null,
     update_time datetime          null,
     create_user bigint            null,
@@ -26,7 +26,7 @@ create table category
     type        tinyint           null,
     name        varchar(32)       null,
     sort        int               null,
-    status      tinyint default 1 null,
+    status      tinyint default 1 not null,
     create_time datetime          null,
     update_time datetime          null,
     create_user bigint            null,
@@ -45,7 +45,7 @@ create table dish
     category_id bigint            null,
     meal_type   tinyint           null,
     flavor_tags json              null,
-    status      tinyint default 1 null,
+    status      tinyint default 1 not null,
     stock       int     default 0 not null,
     create_time datetime          null,
     update_time datetime          null,
@@ -96,7 +96,7 @@ create table flight_info
     duration_minutes   int               null,
     meal_count         tinyint           null,
     selection_deadline datetime          null,
-    status             tinyint default 1 null,
+    status             tinyint default 1 not null,
     create_user        bigint            null,
     update_user        bigint            null,
     create_time        datetime          null,
@@ -107,9 +107,6 @@ create table flight_info
 )
     charset = utf8mb4;
 
-create index idx_flight_number
-    on flight_info (flight_number);
-
 create table flight_announcement
 (
     id          bigint auto_increment
@@ -117,7 +114,7 @@ create table flight_announcement
     flight_id   bigint            null,
     title       varchar(100)      null,
     content     text              null,
-    status      tinyint default 0 null,
+    status      tinyint default 0 not null,
     create_user bigint            null,
     create_time datetime          null,
     update_time datetime          null,
@@ -136,7 +133,7 @@ create table flight_dish
         primary key,
     flight_id   bigint            not null,
     dish_id     bigint            not null,
-    cabin_type  tinyint default 3 not null comment '舱位类型',
+    cabin_type  tinyint default 3 not null,
     sort        int               null,
     create_time datetime          null,
     update_time datetime          null,
@@ -154,6 +151,9 @@ create table flight_dish
 )
     charset = utf8mb4;
 
+create index idx_flight_number
+    on flight_info (flight_number);
+
 create table user
 (
     id                    bigint auto_increment
@@ -168,7 +168,7 @@ create table user
     update_time           datetime          null,
     gender                tinyint           null,
     pic                   longtext          null,
-    cabin_type            tinyint default 3 not null comment '舱位类型:1头等舱,2商务舱,3经济舱',
+    cabin_type            tinyint default 3 not null,
     meal_type_preferences json              null comment '餐食类型偏好',
     flavor_preferences    json              null comment '口味偏好',
     dietary_notes         varchar(255)      null comment '饮食备注',
@@ -184,7 +184,6 @@ create table flight_service_rating
         primary key,
     user_id          bigint                        null,
     flight_id        bigint                        null,
-    source_log_id    bigint                        null,
     rating_score     tinyint                       null,
     rating_status    varchar(16) default 'PENDING' not null,
     first_visible_at datetime                      null,
@@ -214,7 +213,7 @@ create table meal_selection
     id          bigint auto_increment
         primary key,
     number      varchar(50)       null,
-    status      tinyint default 1 null,
+    status      tinyint default 1 not null,
     user_id     bigint            null,
     flight_id   bigint            null,
     meal_order  tinyint default 1 not null,
@@ -238,7 +237,6 @@ create table recommendation_log
     user_id            bigint       null,
     flight_id          bigint       null,
     recommended_dishes json         null,
-    algorithm_type     varchar(50)  null,
     user_rating        tinyint      null,
     user_feedback      varchar(255) null,
     create_time        datetime     null,
@@ -256,36 +254,4 @@ create index idx_recommendation_user
 
 create index idx_user_openid
     on user (openid);
-
--- ====================================================
--- 清除 aviation_food_recommend 所有数据（保留表结构）
--- 执行前请确认：此操作不可逆
--- ====================================================
-
-USE aviation_food_recommend;
-SET FOREIGN_KEY_CHECKS = 0;
-
--- 按依赖链从叶子节点向根节点删除
-TRUNCATE TABLE recommendation_log;
-TRUNCATE TABLE flight_service_rating;
-TRUNCATE TABLE meal_selection;
-TRUNCATE TABLE flight_announcement;
-TRUNCATE TABLE flight_dish;
-TRUNCATE TABLE user;
-TRUNCATE TABLE dish;
-TRUNCATE TABLE category;
-TRUNCATE TABLE flight_info;
-TRUNCATE TABLE employee;
-
-SET FOREIGN_KEY_CHECKS = 1;
-
--- 验证
-SELECT table_name AS '表名', table_rows AS '行数'
-FROM information_schema.tables
-WHERE table_schema = 'aviation_food_recommend'
-  AND table_type = 'BASE TABLE'
-ORDER BY table_name;
-
-
-
 

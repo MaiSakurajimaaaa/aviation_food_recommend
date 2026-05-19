@@ -10,10 +10,10 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         insert into flight_info
         (flight_number, departure, destination, departure_time, arrival_time, duration_minutes,
-         meal_count, meal_times, selection_deadline, status, create_user, update_user, create_time, update_time)
+         meal_count, selection_deadline, status, create_user, update_user, create_time, update_time)
         values
         (#{flightNumber}, #{departure}, #{destination}, #{departureTime}, #{arrivalTime}, #{durationMinutes},
-         #{mealCount}, #{mealTimes}, #{selectionDeadline}, #{status}, #{createUser}, #{updateUser}, #{createTime}, #{updateTime})
+         #{mealCount}, #{selectionDeadline}, #{status}, #{createUser}, #{updateUser}, #{createTime}, #{updateTime})
     </insert>
 
     <update id="update">
@@ -26,7 +26,6 @@
             <if test="arrivalTime != null">arrival_time = #{arrivalTime},</if>
             <if test="durationMinutes != null">duration_minutes = #{durationMinutes},</if>
             <if test="mealCount != null">meal_count = #{mealCount},</if>
-            <if test="mealTimes != null">meal_times = #{mealTimes},</if>
             <if test="selectionDeadline != null">selection_deadline = #{selectionDeadline},</if>
             <if test="status != null">status = #{status},</if>
             <if test="updateUser != null">update_user = #{updateUser},</if>

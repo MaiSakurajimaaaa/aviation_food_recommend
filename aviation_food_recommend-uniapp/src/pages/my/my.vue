@@ -6,13 +6,12 @@
     <view class="profile card">
       <image class="avatar" :src="user.pic || '/static/images/user_default.png'" mode="aspectFill"></image>
       <view class="profile-right">
-        <view class="profile-kicker">AERO IDENTITY SUITE</view>
-        <view class="name">{{ user.name || '未设置昵称' }}</view>
+        <view class="name">{{ user.name || '未设置姓名' }}</view>
         <view class="sub">手机号 {{ user.phone || '未设置' }}</view>
-        <view class="sub" v-if="loading">正在同步最新状态...</view>
         <view class="status-row">
+          <view class="status-pill" :class="cabinPillClass" v-if="cabinLabel">{{ cabinLabel }}</view>
+          <view class="status-pill pre-pill" :class="preSelectionPillClass">{{ preSelectionPillText }}</view>
           <view class="status-pill">{{ preferenceLoaded ? '画像已就绪' : '画像待完善' }}</view>
-          <view class="status-pill" v-if="currentFlight">航班已绑定</view>
         </view>
       </view>
     </view>
@@ -69,6 +68,7 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getCurrentFlightAPI } from '@/api/flight'
 import { getPreferenceAPI } from '@/api/preference'
+import { updateUserAPI } from '@/api/user'
 import { getPendingRatingAPI, getRecommendationHistoryAPI } from '@/api/recommendation'
 import { getProfileTagsAPI, getUserInfoAPI } from '@/api/user'
 import { useAuthGuard } from '@/composables/useAuthGuard'
@@ -177,6 +177,36 @@ const ratingStatusText = computed(() => {
   return '已完成或暂无待评分'
 })
 
+const cabinLabel = computed(() => {
+  const ct = user.value.cabinType ?? 3
+  if (ct === 1) return '头等舱'
+  if (ct === 2) return '商务舱'
+  return ''
+})
+
+const cabinPillClass = computed(() => {
+  const ct = user.value.cabinType ?? 3
+  if (ct === 1) return 'pill-gold'
+  if (ct === 2) return 'pill-silver'
+  return ''
+})
+
+const preSelectionPillText = computed(() => {
+  if (!currentFlight.value) return '未绑定航班'
+  const progress = selectionProgress.value
+  if (isSelectionClosed.value) {
+    return progress.completedCount > 0 ? '已预选 · 已截止' : '未预选 · 已截止'
+  }
+  return progress.completedCount > 0 ? '已预选 · 可修改' : '未预选'
+})
+
+const preSelectionPillClass = computed(() => {
+  if (!currentFlight.value) return 'pill-warn'
+  const progress = selectionProgress.value
+  if (isSelectionClosed.value) return 'pill-gray'
+  return progress.completedCount > 0 ? 'pill-green' : 'pill-warn'
+})
+
 const openRatingPage = (force = false) => {
   if (!force) return
   if (!pendingRatingList.value.length) return
@@ -218,6 +248,12 @@ const loadData = async () => {
       getPendingRatingAPI(),
     ])
     user.value = userRes.data || {id: 0, openid: ''}
+    // 若姓名仍为空，触发后端从管理员录入的旅客记录中同步
+    if (!user.value.name && userRes.data?.idNumber) {
+      await updateUserAPI({ id: userStore.profile!.id, idNumber: userRes.data.idNumber })
+      const updated = await getUserInfoAPI(userStore.profile!.id)
+      user.value = updated.data || user.value
+    }
     currentFlight.value = flightRes.data || null
     preference.value = preferenceRes.data || {}
     preferenceLoaded.value = !!preferenceRes.data
@@ -350,13 +386,20 @@ onShow(() => {
 }
 
 .status-pill {
-  padding: 6rpx 12rpx;
+  padding: 6rpx 14rpx;
   border-radius: 999rpx;
   font-size: 21rpx;
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.36);
   background: rgba(255, 255, 255, 0.2);
+  font-weight: 600;
 }
+.pre-pill { font-size: 22rpx; padding: 6rpx 16rpx; }
+.pill-gold { background: rgba(245,158,11,0.6); border-color: rgba(245,158,11,0.5); }
+.pill-silver { background: rgba(148,163,184,0.5); border-color: rgba(148,163,184,0.5); }
+.pill-green { background: rgba(16,185,129,0.55); border-color: rgba(16,185,129,0.5); }
+.pill-warn { background: rgba(245,158,11,0.55); border-color: rgba(245,158,11,0.5); }
+.pill-gray { background: rgba(148,163,184,0.5); border-color: rgba(148,163,184,0.45); }
 
 .rating-panel {
   display: flex;

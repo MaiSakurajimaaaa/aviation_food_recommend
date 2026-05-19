@@ -2,7 +2,6 @@ package fun.hykgraph.controller.admin;
 
 import fun.hykgraph.dto.FlightPassengerDTO;
 import fun.hykgraph.mapper.UserMapper;
-import fun.hykgraph.mapper.UserPreferenceMapper;
 import fun.hykgraph.result.Result;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,8 +20,6 @@ class FlightControllerTest {
     @Mock
     private UserMapper userMapper;
 
-    @Mock
-    private UserPreferenceMapper userPreferenceMapper;
 
     private FlightController controller;
 
@@ -30,7 +27,6 @@ class FlightControllerTest {
     void setUp() {
         controller = new FlightController();
         ReflectionTestUtils.setField(controller, "userMapper", userMapper);
-        ReflectionTestUtils.setField(controller, "userPreferenceMapper", userPreferenceMapper);
     }
 
     @Test

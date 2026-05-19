@@ -68,7 +68,9 @@
 
         <select id="findVisiblePendingRatings" resultType="fun.hykgraph.vo.PendingRatingInfoVO">
                 select fr.id as ratingTaskId,
-                             null as logId,
+                             (select rl3.id from recommendation_log rl3
+                              where rl3.user_id = fr.user_id and rl3.flight_id = fr.flight_id
+                              order by rl3.id desc limit 1) as logId,
                              fr.flight_id as flightId,
                              fr.rating_status as ratingStatus,
                              fr.defer_count as deferCount,
@@ -81,8 +83,16 @@
                              fi.departure_time as departureTime,
                              fi.arrival_time as arrivalTime
                 from flight_service_rating fr
-                                 left join recommendation_log rl on rl.user_id = fr.user_id and rl.flight_id = fr.flight_id
                                  inner join flight_info fi on fi.id = fr.flight_id
+                                 left join (
+                                     select rl2.user_id, rl2.flight_id, rl2.recommended_dishes
+                                     from recommendation_log rl2
+                                     inner join (
+                                         select user_id, flight_id, max(id) as max_id
+                                         from recommendation_log
+                                         group by user_id, flight_id
+                                     ) latest on latest.max_id = rl2.id
+                                 ) rl on rl.user_id = fr.user_id and rl.flight_id = fr.flight_id
                 where fr.user_id = #{userId}
                     and fr.rating_status in ('PENDING', 'DEFERRED')
                     and (fr.next_remind_at is null or fr.next_remind_at &lt;= #{now})
@@ -467,7 +477,9 @@
 
     <select id="listRatingHistory" resultType="java.util.HashMap">
         select fr.id as ratingTaskId,
-               null as logId,
+               (select rl3.id from recommendation_log rl3
+                where rl3.user_id = fr.user_id and rl3.flight_id = fr.flight_id
+                order by rl3.id desc limit 1) as logId,
                fr.flight_id as flightId,
                fr.rating_status as ratingStatus,
                fr.rating_score as ratingScore,

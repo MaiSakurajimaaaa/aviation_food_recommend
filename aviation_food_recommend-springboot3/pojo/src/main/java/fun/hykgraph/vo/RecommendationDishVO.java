@@ -19,6 +19,8 @@ public class RecommendationDishVO implements Serializable {
     private String flavorTags;
     private String routeDeparture;
     private String routeDestination;
+    private Integer categoryId;
+    private String categoryName;
     private Double score;
     private String explainReason;
     private Integer fallbackLevel;

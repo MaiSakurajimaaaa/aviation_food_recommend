@@ -14,61 +14,31 @@
                fi.destination,
                ms.id as order_id,
                ms.number as order_number,
-               case
-                   when ms.status = 5 then 5
-                   when ms.status = 3 then 3
-                   when ms.status = 1 and mlog.recommended_dishes is not null then 3
-                   else ms.status
-               end as order_status,
+               ms.status as order_status,
                ms.create_time as order_time,
-               null as dish_id,
-               case
-                   when mlog.recommended_dishes is not null then
-                       ifnull((
-                           select group_concat(d.name order by find_in_set(cast(d.id as char), replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', '')) separator '、')
-                           from dish d
-                           where find_in_set(cast(d.id as char), replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', '')) &gt; 0
-                       ), replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''))
-                   when alog.recommended_dishes is not null then replace(replace(replace(replace(alog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', '')
-                   else '未记录具体餐食'
-               end as dish_name,
-               '-' as dish_flavor,
-               case
-                   when mlog.recommended_dishes is not null then
-                       1 + length(replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''))
-                           - length(replace(replace(replace(replace(replace(mlog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''), ',', ''))
-                   when alog.recommended_dishes is not null then
-                       1 + length(replace(replace(replace(replace(alog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''))
-                           - length(replace(replace(replace(replace(replace(alog.recommended_dishes, ' ', ''), '[', ''), ']', ''), '"', ''), ',', ''))
-                   else 0
-               end as dish_count
+               ms.meal_order as mealOrder,
+               d.id as dish_id,
+               ifnull(d.name, '未记录') as dish_name,
+               ifnull(d.flavor_tags, '-') as dish_flavor,
+               1 as dish_count
         from meal_selection ms
                  inner join user u on u.id = ms.user_id
                  left join flight_info fi on fi.id = ms.flight_id
-                 left join (
-                    select rl.user_id, rl.flight_id, rl.recommended_dishes
-                    from recommendation_log rl
-                             inner join (
-                        select user_id, flight_id, max(id) as latest_id
-                        from recommendation_log
-                        where user_feedback like 'MANUAL_SELECTED%'
-                          and recommended_dishes is not null
-                          and nullif(replace(trim(recommended_dishes), ' ', ''), '[]') is not null
-                        group by user_id, flight_id
-                    ) latest_manual on latest_manual.latest_id = rl.id
-                 ) mlog on mlog.user_id = ms.user_id and mlog.flight_id = ms.flight_id
-                 left join (
-                    select rl.user_id, rl.flight_id, rl.recommended_dishes
-                    from recommendation_log rl
-                             inner join (
-                        select user_id, flight_id, max(id) as latest_id
-                        from recommendation_log
-                        where user_feedback = 'AUTO_SELECTED_OVERDUE'
-                          and recommended_dishes is not null
-                          and nullif(replace(trim(recommended_dishes), ' ', ''), '[]') is not null
-                        group by user_id, flight_id
-                    ) latest_auto on latest_auto.latest_id = rl.id
-                 ) alog on alog.user_id = ms.user_id and alog.flight_id = ms.flight_id
+                 left join recommendation_log rl on rl.user_id = ms.user_id
+                    and rl.flight_id = ms.flight_id
+                    and rl.user_feedback like 'MANUAL_SELECTED%'
+                    and rl.id = (
+                        select max(rl2.id) from recommendation_log rl2
+                        where rl2.user_id = ms.user_id
+                          and rl2.flight_id = ms.flight_id
+                          and rl2.user_feedback like 'MANUAL_SELECTED%'
+                    )
+                 left join dish d on d.id = cast(
+                     regexp_replace(
+                         regexp_replace(rl.user_feedback, '.*dishId=', ''),
+                         ':.*', ''
+                     ) as unsigned
+                 )
         <where>
             <if test="flightNumber != null and flightNumber != ''">
                 and fi.flight_number like concat('%', #{flightNumber}, '%')

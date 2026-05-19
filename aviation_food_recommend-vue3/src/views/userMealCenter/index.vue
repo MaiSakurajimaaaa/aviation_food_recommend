@@ -253,7 +253,9 @@ onMounted(loadData)
             {{ formatDishName(scope.row.dishName) }}
           </template>
         </el-table-column>
-        <el-table-column prop="dishCount" label="数量" width="80" />
+        <el-table-column label="餐次" width="70">
+          <template #default="scope">第{{ scope.row.mealOrder || 1 }}餐</template>
+        </el-table-column>
         <el-table-column label="选餐状态" width="100">
           <template #default="scope">
             <el-tag :type="statusTagType(scope.row.orderStatus)">{{ formatOrderStatus(scope.row.orderStatus) }}</el-tag>

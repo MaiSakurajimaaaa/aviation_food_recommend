@@ -16,8 +16,8 @@
         </view>
       </view>
       <view class="item">
-        <view class="title">昵称</view>
-        <input class="item_input app-input" placeholder="请输入昵称" v-model="user.name" />
+        <view class="title">姓名</view>
+        <input class="item_input app-input" placeholder="请输入姓名" v-model="user.name" />
       </view>
       <view class="item">
         <view class="title">手机号</view>
@@ -100,7 +100,7 @@ const validateForm = (): boolean => {
   // 验证昵称
   if (!user.name) {
     uni.showToast({
-      title: '昵称不能为空',
+      title: '姓名不能为空',
       icon: 'none',
     })
     valid = false

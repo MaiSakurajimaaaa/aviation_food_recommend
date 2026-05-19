@@ -30,34 +30,37 @@
     </view>
 
     <view class="card">
-      <view class="title">偏好餐型</view>
-      <picker mode="selector" :range="mealTypeOptions" range-key="label" @change="onMealTypeChange">
-        <view class="picker">{{ selectedMealTypeLabel }}</view>
-      </picker>
+      <view class="title">偏好分类</view>
+      <view class="tag-wrap">
+        <view
+          class="tag"
+          :class="{ active: likedCategories.includes(cat) }"
+          v-for="cat in categoryOptions"
+          :key="cat"
+          @click="toggleLikedCategory(cat)"
+        >
+          {{ cat }}
+        </view>
+      </view>
       <button type="button" class="submit" :disabled="submitting" @click="save">{{ submitting ? '保存中...' : '保存偏好并进入推荐' }}</button>
-      <button type="button" class="skip" v-if="isFirstEntry" :disabled="submitting" @click="skipForNow">先跳过口味，直接体验推荐</button>
+      <button type="button" class="skip" v-if="isFirstEntry" :disabled="submitting" @click="skipForNow">先跳过，直接体验推荐</button>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { getPreferenceAPI, savePreferenceAPI } from '@/api/preference'
-import { MEAL_TYPE_OPTIONS } from '@/utils/meal'
 import type { UserPreference } from '@/types/aviation'
 
 const isFirstEntry = ref(false)
 const flavorOptions = ['清淡', '咸香', '微辣', '甜口', '低脂', '高蛋白']
-const mealTypeOptions = MEAL_TYPE_OPTIONS
 
 const likedFlavors = ref<string[]>([])
-const mealType = ref('2')
+const likedCategories = ref<string[]>([])
+const categoryOptions = ['中式热菜', '西式主菜', '日韩料理', '面点主食', '清真专供', '素食轻食', '儿童套餐', '汤品饮品']
 const submitting = ref(false)
-
-const selectedMealTypeLabel = computed(() => {
-  return mealTypeOptions.find((item) => item.value === mealType.value)?.label || '请选择餐型'
-})
 
 const parseJsonArray = (raw?: string) => {
   if (!raw) return [] as string[]
@@ -69,11 +72,10 @@ const parseJsonArray = (raw?: string) => {
   }
 }
 
-const onMealTypeChange = (event: any) => {
-  const index = Number(event.detail.value)
-  const option = mealTypeOptions[index]
-  if (!option) return
-  mealType.value = option.value
+const toggleLikedCategory = (cat: string) => {
+  const idx = likedCategories.value.indexOf(cat)
+  if (idx >= 0) likedCategories.value.splice(idx, 1)
+  else likedCategories.value.push(cat)
 }
 
 const toggleLikedFlavor = (tag: string) => {
@@ -88,8 +90,7 @@ const loadData = async () => {
   const res = await getPreferenceAPI()
   if (!res.data) return
   likedFlavors.value = parseJsonArray(res.data.flavorPreferences)
-  const mealTypeList = parseJsonArray(res.data.mealTypePreferences)
-  mealType.value = mealTypeList[0] || '2'
+  likedCategories.value = parseJsonArray(res.data.mealTypePreferences || '[]')
 }
 
 const save = async () => {
@@ -97,7 +98,7 @@ const save = async () => {
     return
   }
   const payload: UserPreference = {
-    mealTypePreferences: JSON.stringify([mealType.value]),
+    mealTypePreferences: JSON.stringify(likedCategories.value),
     flavorPreferences: JSON.stringify(likedFlavors.value),
   }
   submitting.value = true

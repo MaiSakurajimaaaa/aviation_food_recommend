@@ -7,7 +7,6 @@ import fun.hykgraph.mapper.DishMapper;
 import fun.hykgraph.mapper.FlightInfoMapper;
 import fun.hykgraph.mapper.RecommendationMapper;
 import fun.hykgraph.mapper.UserMapper;
-import fun.hykgraph.mapper.UserPreferenceMapper;
 import fun.hykgraph.result.Result;
 import fun.hykgraph.vo.PendingRatingInfoVO;
 import fun.hykgraph.vo.RecommendationDishVO;
@@ -50,8 +49,6 @@ class RecommendationControllerTest {
         private UserMapper userMapper;
         @Mock
         private FlightInfoMapper flightInfoMapper;
-        @Mock
-        private UserPreferenceMapper userPreferenceMapper;
         @Mock
         private DishMapper dishMapper;
 
@@ -600,7 +597,6 @@ class RecommendationControllerTest {
                 ReflectionTestUtils.setField(controller, "recommendationMapper", recommendationMapper);
                 ReflectionTestUtils.setField(controller, "userMapper", userMapper);
                 ReflectionTestUtils.setField(controller, "flightInfoMapper", flightInfoMapper);
-                ReflectionTestUtils.setField(controller, "userPreferenceMapper", userPreferenceMapper);
                 ReflectionTestUtils.setField(controller, "dishMapper", dishMapper);
                 return controller;
         }

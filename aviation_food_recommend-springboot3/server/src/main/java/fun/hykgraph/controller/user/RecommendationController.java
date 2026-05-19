@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @RestController("userRecommendationController")
@@ -43,6 +44,17 @@ public class RecommendationController {
     private static final int CABIN_FIRST = 1;
     private static final int CABIN_BUSINESS = 2;
     private static final int CABIN_ECONOMY = 3;
+
+    // 推荐结果缓存：key = userId+"_"+flightId, value = {list, expireTime}
+    private final ConcurrentHashMap<String, CacheEntry<List<RecommendationDishVO>>> recCache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_MS = 8000;
+
+    private static class CacheEntry<T> {
+        final T data;
+        final long expireAt;
+        CacheEntry(T data, long ttlMs) { this.data = data; this.expireAt = System.currentTimeMillis() + ttlMs; }
+        boolean expired() { return System.currentTimeMillis() > expireAt; }
+    }
 
     @Autowired
     private UserMapper userMapper;
@@ -159,6 +171,13 @@ public class RecommendationController {
         if (flightId == null) {
             return Result.error("请先绑定航班");
         }
+
+        // 缓存检查：相同参数10秒内直接返回
+        String cacheKey = userId + "_" + flightId + "_" + normalizeParam(flavor) + "_" + mealOrder;
+        CacheEntry<List<RecommendationDishVO>> cached = recCache.get(cacheKey);
+        if (cached != null && !cached.expired()) {
+            return Result.success(cached.data);
+        }
         FlightInfo flightInfo = flightInfoMapper.getById(flightId);
         int safeMealOrder = resolveMealOrder(mealOrder, flightInfo == null ? null : flightInfo.getMealCount());
         Integer mealTypeParam = parseMealType(mealType);
@@ -181,9 +200,9 @@ public class RecommendationController {
             return Result.success(list);
         }
 
-        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 500);
         User prefUser = userMapper.getById(userId);
-        Set<Integer> prefMealTypes = parsePreferenceMealTypes(prefUser == null ? null : prefUser.getMealTypePreferences());
+        Set<String> prefCategories = parsePreferenceCategories(prefUser == null ? null : prefUser.getMealTypePreferences());
         Set<String> prefFlavors = new HashSet<>(parseFlavorList(prefUser == null ? null : prefUser.getFlavorPreferences()));
 
         Map<Integer, RecommendationDishVO> candidateMap = list.stream()
@@ -197,21 +216,20 @@ public class RecommendationController {
         double[] fusionWeights = resolveFusionWeights(userId, context);
         int behaviorSignalCount = resolveBehaviorSignalCount(userId, context);
         Integer prevDishId = null;
-        Integer prevMealType = null;
+        Integer prevCategoryId = null;
         if (safeMealOrder > 1) {
             Map<String, Object> prevSelection = recommendationMapper.latestManualSelection(userId, flightId, safeMealOrder - 1);
             prevDishId = extractDishIdFromLatestSelection(prevSelection);
             if (prevDishId != null) {
                 RecommendationDishVO prevDish = candidateMap.get(prevDishId);
                 if (prevDish != null) {
-                    prevMealType = prevDish.getMealType();
+                    prevCategoryId = prevDish.getCategoryId();
                 }
             }
         }
         int idx = 0;
         for (RecommendationDishVO item : list) {
-            double pmfupScore = calculatePmfupScore(item, prefMealTypes, prefFlavors, flightId, context, userId,
-                    flightInfo == null ? null : flightInfo.getDepartureTime(), safeMealOrder);
+            double pmfupScore = calculatePmfupScore(item, prefCategories, prefFlavors);
             double prmidmScore = calculatePrmidmScore(userId, item.getDishId(), context);
             double ammbcScore = calculateAmmbcScore(userId, item.getDishId(), context);
 
@@ -219,7 +237,7 @@ public class RecommendationController {
             if (prevDishId != null) {
                 if (Objects.equals(item.getDishId(), prevDishId)) {
                     fusedScore *= 0.70;
-                } else if (prevMealType != null && Objects.equals(item.getMealType(), prevMealType)) {
+                } else if (prevCategoryId != null && Objects.equals(item.getCategoryId(), prevCategoryId)) {
                     fusedScore *= 0.85;
                 }
             }
@@ -228,7 +246,6 @@ public class RecommendationController {
             if (pmfupScore >= 0.65) reasons.add("画像偏好匹配");
             if (prmidmScore >= 0.55) reasons.add("近期口味漂移");
             if (ammbcScore >= 0.40) reasons.add("协同过滤匹配");
-            if (behaviorSignalCount < 3) reasons.add("行为样本不足");
             if (prevDishId != null && Objects.equals(item.getDishId(), prevDishId)) reasons.add("与前序餐食相同");
             if (reasons.isEmpty()) reasons.add("基础稳健推荐");
 
@@ -258,6 +275,9 @@ public class RecommendationController {
         } catch (Exception ex) {
             log.warn("推荐日志写入失败，已跳过。userId={}, flightId={}", userId, flightId, ex);
         }
+
+        // 写入缓存（8秒TTL）
+        recCache.put(cacheKey, new CacheEntry<>(list, CACHE_TTL_MS));
 
         return Result.success(list);
     }
@@ -426,6 +446,9 @@ public class RecommendationController {
                 modified = true;
             }
         }
+
+        // 清除该用户在此航班的推荐缓存
+        recCache.keySet().removeIf(k -> k.startsWith(userId + "_" + flightInfo.getId() + "_"));
 
         Map<String, Object> response = new HashMap<>();
         response.put("flightId", flightInfo.getId());
@@ -601,7 +624,7 @@ public class RecommendationController {
         }
 
         User user = userMapper.getById(userId);
-        Set<Integer> prefMealTypes = parsePreferenceMealTypes(user == null ? null : user.getMealTypePreferences());
+        Set<String> prefCategoriesLocal = parsePreferenceCategories(user == null ? null : user.getMealTypePreferences());
         Set<String> prefFlavors = new HashSet<>(parseFlavorList(user == null ? null : user.getFlavorPreferences()));
 
         List<Integer> cabinTypes = resolveUserCabinTypes(user);
@@ -626,7 +649,7 @@ public class RecommendationController {
             }
         }
 
-        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        List<Map<String, Object>> recentLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 500);
         InteractionContext context = buildInteractionContext(recentLogs, voMap, dishNameIdMap);
 
         double[] fusionWeights = resolveFusionWeights(userId, context);
@@ -637,8 +660,7 @@ public class RecommendationController {
             row.put("dishId", did);
             row.put("dishName", vo != null && vo.getDishName() != null ? vo.getDishName() : ("餐食#" + did));
             if (vo != null) {
-                double pmfup = calculatePmfupScore(vo, prefMealTypes, prefFlavors, flightId, context, userId,
-                        flightInfo == null ? null : flightInfo.getDepartureTime(), null);
+                double pmfup = calculatePmfupScore(vo, prefCategoriesLocal, prefFlavors);
                 double prmidm = calculatePrmidmScore(userId, did, context);
                 double ammbc = calculateAmmbcScore(userId, did, context);
                 double fused = fusionWeights[0] * pmfup + fusionWeights[1] * prmidm + fusionWeights[2] * ammbc;
@@ -666,7 +688,7 @@ public class RecommendationController {
      */
     @GetMapping("/recommendation/evaluate")
     public Result<Map<String, Object>> evaluate() {
-        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 500);
         if (allLogs == null || allLogs.size() < 30) {
             return Result.error("日志数量不足，无法评测");
         }
@@ -842,7 +864,7 @@ public class RecommendationController {
 
             InteractionContext ctx = buildInteractionContext(logsBefore, candidateMap, dishNameIdMap);
             User prefUser = userMapper.getById(userId);
-            Set<Integer> prefMealTypes = parsePreferenceMealTypes(
+            Set<String> prefCategoriesLocal = parsePreferenceCategories(
                     prefUser == null ? null : prefUser.getMealTypePreferences());
             Set<String> prefFlavors = new HashSet<>(
                     parseFlavorList(prefUser == null ? null : prefUser.getFlavorPreferences()));
@@ -858,8 +880,7 @@ public class RecommendationController {
             List<RecommendationDishVO> scored = new ArrayList<>();
             for (RecommendationDishVO item : candidates) {
                 if (item.getDishId() == null) continue;
-                double s1 = calculatePmfupScore(item, prefMealTypes, prefFlavors,
-                        flightId, ctx, userId, flightInfo.getDepartureTime(), 1);
+                double s1 = calculatePmfupScore(item, prefCategoriesLocal, prefFlavors);
                 double s2 = calculatePrmidmScore(userId, item.getDishId(), ctx);
                 double s3 = calculateAmmbcScore(userId, item.getDishId(), ctx);
                 double fused = weights[0] * s1 + weights[1] * s2 + weights[2] * s3;
@@ -927,7 +948,7 @@ public class RecommendationController {
      */
     @GetMapping("/recommendation/evaluate/subsample")
     public Result<Map<String, Object>> evaluateSubsample() {
-        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 500);
         if (allLogs == null || allLogs.size() < 30) {
             return Result.error("日志数量不足");
         }
@@ -1099,7 +1120,7 @@ public class RecommendationController {
      */
     @GetMapping("/recommendation/evaluate/bootstrap")
     public Result<Map<String, Object>> evaluateBootstrap() {
-        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 500);
         if (allLogs == null || allLogs.size() < 30) return Result.error("日志数量不足");
 
         // 按用户分组日志
@@ -1165,7 +1186,7 @@ public class RecommendationController {
     @GetMapping("/recommendation/evaluate/debug")
     public Result<Map<String, Object>> evaluateDebug() {
         Map<String, Object> result = new HashMap<>();
-        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 5000);
+        List<Map<String, Object>> allLogs = recommendationMapper.listRecentLogs(HISTORY_WINDOW_DAYS, 500);
 
         // 统计日志来源
         Set<Integer> allUserIds = new HashSet<>();
@@ -1300,20 +1321,15 @@ public class RecommendationController {
     }
 
     private double calculatePmfupScore(RecommendationDishVO item,
-                                       Set<Integer> prefMealTypes,
-                                       Set<String> prefFlavors,
-                                       Integer flightId,
-                                       InteractionContext context,
-                                       Integer userId,
-                                       LocalDateTime departureTime,
-                                       Integer mealOrder) {
+                                       Set<String> prefCategories,
+                                       Set<String> prefFlavors) {
         if (item == null || item.getDishId() == null) {
             return 0.0;
         }
 
         double prefScore = 0.2;
-        if (!prefMealTypes.isEmpty() && item.getMealType() != null && prefMealTypes.contains(item.getMealType())) {
-            prefScore += prefMealTypes.size() == 1 ? 0.45 : 0.38;
+        if (!prefCategories.isEmpty() && item.getCategoryName() != null && prefCategories.contains(item.getCategoryName())) {
+            prefScore += prefCategories.size() == 1 ? 0.45 : 0.38;
         }
         if (!prefFlavors.isEmpty() && item.getFlavorTags() != null) {
             int matched = 0;
@@ -1409,8 +1425,11 @@ public class RecommendationController {
                                                        Map<String, Integer> dishNameIdMap) {
         InteractionContext ctx = new InteractionContext();
         Set<Integer> allDishIds = collectDishIdsFromLogs(logs);
-        allDishIds.addAll(candidateMap.keySet());
-        ctx.dishFlavorTags.putAll(loadDishFlavorTags(allDishIds));
+        // 候选菜品已在candidateMap中含口味标签，仅需为日志中额外出现的菜品ID加载口味
+        allDishIds.removeAll(candidateMap.keySet());
+        if (!allDishIds.isEmpty()) {
+            ctx.dishFlavorTags.putAll(loadDishFlavorTags(allDishIds));
+        }
         for (RecommendationDishVO dish : candidateMap.values()) {
             if (dish == null || dish.getDishId() == null) {
                 continue;
@@ -1809,11 +1828,9 @@ public class RecommendationController {
         if (mealTypePreferences == null && flavorPreferences == null) {
             return "偏好参数不能为空";
         }
-        Set<Integer> mealTypes = parsePreferenceMealTypes(mealTypePreferences);
-        for (Integer mt : mealTypes) {
-            if (!ALLOWED_MEAL_TYPES.contains(mt)) {
-                return "mealTypePreferences包含非法餐型";
-            }
+        Set<String> categories = parsePreferenceCategories(mealTypePreferences);
+        if (!categories.isEmpty()) {
+            // 分类偏好已通过前端硬编码列表约束，此处不再逐项校验
         }
         List<String> flavors = parseFlavorList(flavorPreferences);
         for (String item : flavors) {
@@ -1824,7 +1841,7 @@ public class RecommendationController {
         return null;
     }
 
-    private Set<Integer> parsePreferenceMealTypes(String raw) {
+    private Set<String> parsePreferenceCategories(String raw) {
         if (raw == null || raw.trim().isEmpty()) {
             return Collections.emptySet();
         }
@@ -1832,16 +1849,10 @@ public class RecommendationController {
         if (compact.isEmpty()) {
             return Collections.emptySet();
         }
-        Set<Integer> result = new LinkedHashSet<>();
+        Set<String> result = new LinkedHashSet<>();
         for (String token : compact.split(",")) {
-            try {
-                int v = Integer.parseInt(token.trim());
-                if (ALLOWED_MEAL_TYPES.contains(v)) {
-                    result.add(v);
-                }
-            } catch (Exception ex) {
-                // skip invalid tokens
-            }
+            String cat = token.trim();
+            if (!cat.isEmpty()) result.add(cat);
         }
         return result;
     }

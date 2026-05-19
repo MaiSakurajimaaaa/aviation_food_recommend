@@ -4,8 +4,10 @@ import fun.hykgraph.constant.MessageConstant;
 import fun.hykgraph.exception.BaseException;
 import fun.hykgraph.result.Result;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLException;
@@ -41,6 +43,12 @@ public class GlobalExceptionHandler {
     public Result<String> handleSqlException(SQLException ex){
         log.error("SQL异常", ex);
         return Result.error("数据库执行失败，请稍后重试");
+    }
+
+    @ExceptionHandler({ClientAbortException.class, AsyncRequestNotUsableException.class})
+    public void handleClientAbort(Exception ex) {
+        // 客户端主动断开连接（刷新页面、切换Tab等），无需处理
+        log.debug("客户端连接中止: {}", ex.getMessage());
     }
 
     @ExceptionHandler
